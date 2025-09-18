@@ -9,7 +9,7 @@ bindings = "pyo3"
 
 [project]
 name = "sealwatch"
-version = "2025.07"
+version = "2025.09"
 dependencies = [
   "numpy",
   "scipy",
