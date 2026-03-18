@@ -1,4 +1,36 @@
 
+import numpy as np
+import sealwatch as sw
+from torchinfo import summary
+
+b4 = sw.efficientnet.B4()
+summary(b4, (1, 1, 512, 512))
+exit()
+
+b0 = sw.EfficientNetB0.pretrained(weight_seed=12345)
+rng = np.random.default_rng(12345)
+x = rng.integers(0, 256, size=(512, 512, 1), dtype='uint8')
+b0.eval()
+print(repr(b0))
+y = sw.efficientnet.infere_single(x=x, model=b0)
+print(y)
+
+#
+state_dict = b0.state_dict()
+b0.load_state_dict(state_dict, strict=True)
+
+
+
+
+
+
+
+
+
+exit()
+
+
+
 import conseal as cl
 from glob import glob
 import logging

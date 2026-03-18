@@ -11,12 +11,14 @@ bindings = "pyo3"
 name = "sealwatch"
 version = "2025.09"
 dependencies = [
+  "opencv-python",
   "numpy",
   "scipy",
   "jpeglib",
   "h5py",
   "pandas",
   "pillow",
+  "timm",
   "torch",
   "torchvision",
   "tqdm"

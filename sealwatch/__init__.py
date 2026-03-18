@@ -21,8 +21,13 @@ from .srm import crm
 from .srm import srmq1
 
 # classifier
+from . import efficientnet
+from .efficientnet import B0, B4
 from . import ensemble_classifier
+from . import ucnet
+from .ucnet import UcNet
 from . import xunet
+from .xunet import XuNet
 
 #
 from . import tools
