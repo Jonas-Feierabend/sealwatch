@@ -1,5 +1,7 @@
 import conseal as cl 
 from conseal.lsb._costmap import Change
+import numpy as np 
+
 class costCalculator(): 
     def __init__(self):
         self.cost_functions = [self.hill, self.hugo, self.lsbm, self.lsbr, self.suniward, self.wow]
