@@ -22,7 +22,7 @@ dependencies = [
   "torch",
   "torchvision",
   "tqdm", 
-  "conseal
+  "conseal"
 ]
 requires-python = ">= 3.8"
 authors = [

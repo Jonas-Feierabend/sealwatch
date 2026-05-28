@@ -120,3 +120,48 @@ def attack(stego, cover):
         best_res = max(results, key=lambda x: x['log_lik'])
 
         return [[best_res['method_name'], best_res["M"]], results]
+
+
+
+def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
+    delta = (stego_dct.astype(np.int32) - cover_dct.astype(np.int32)).astype(np.float64)
+
+    cost_functions = {
+        "juniward": lambda: cl.juniward.compute_cost_adjusted(
+                        x0=cover_spatial, y0=cover_dct, qt=qtable),
+        "uerd":     lambda: cl.uerd.compute_cost_adjusted(
+                        y0=cover_dct, qt=qtable),
+        "ebs":      lambda: cl.ebs.compute_cost_adjusted(
+                        y0=cover_dct, qt=qtable),
+        "nsf5":     lambda: cl.nsF5.compute_cost_adjusted(y0=cover_dct),
+        "f5":       lambda: cl.nsF5.compute_cost_adjusted(y0=cover_dct),  # F5 nutzt nsF5-Kosten
+        "lsb":      lambda: cl.lsb.compute_cost_adjusted(
+                        cover_dct, modify=Change.LSB_REPLACEMENT),
+    }
+
+    results = []
+    for name, cost_fn in cost_functions.items():
+        rho_raw = np.asarray(cost_fn(), dtype=np.float64)
+        # Tuple (rho_p1, rho_m1) → (2, H//8, W//8, 8, 8); LSB → (H//8, W//8, 8, 8)
+        rho = rho_raw[0] if rho_raw.ndim == 5 else rho_raw
+
+        est_lambda, est_M = estimate_parameters(delta, rho, name)
+
+        exponent = np.exp(-est_lambda * rho)
+        p_i = exponent / (1 + 2 * exponent)
+        p0  = 1 - 2 * p_i
+        log_lik = float(np.sum(np.where(
+            delta != 0,
+            np.log(p_i + 1e-15),
+            np.log(p0  + 1e-15)
+        )))
+
+        results.append({
+            'method_name': name,
+            'M':           est_M,
+            'lambda':      est_lambda,
+            'log_lik':     log_lik,
+        })
+
+    best_res = max(results, key=lambda x: x['log_lik'])
+    return [[best_res['method_name'], best_res['M']], results]
