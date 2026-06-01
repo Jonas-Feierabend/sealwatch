@@ -29,7 +29,7 @@ def estimate_parameters(delta, rho_matrix, name):
 
         exponent = np.exp(-lambda_param * rho_matrix)
 
-        if name == "lsbr": 
+        if name in ("lsbr", "nsf5", "f5", "lsb"): 
             p_i = exponent / (1 + 1 * exponent)
             beta_theo = np.mean(1 * p_i) # Faktor 2 für +1 und -1    
         else: 
@@ -42,7 +42,7 @@ def estimate_parameters(delta, rho_matrix, name):
             
         lambda_param *= (beta_theo / beta_obs)
         
-    if name in ("lsbr", "lsbm"):
+    if name in ("lsbr", "lsbm", "lsb"):
         m_estimated = 2.0 * float((delta != 0).sum())
     else: 
         p_i = np.exp(-lambda_param * rho_matrix) / (1 + np.exp(-lambda_param * rho_matrix))
@@ -126,7 +126,6 @@ def attack(stego, cover):
             }
 
 
-
 def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
     delta = (stego_dct.astype(np.int32) - cover_dct.astype(np.int32)).astype(np.float64)
 
@@ -137,63 +136,90 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
                         y0=cover_dct, qt=qtable),
         "ebs":      lambda: cl.ebs.compute_cost_adjusted(
                         y0=cover_dct, qt=qtable),
-        "nsf5":     lambda: cl.nsF5.compute_cost_adjusted(y0=cover_dct),
-        "f5":       lambda: cl.nsF5.compute_cost_adjusted(y0=cover_dct),
-        "lsb":      lambda: cl.lsb.compute_cost_adjusted(
-                        cover_dct, modify=Change.LSB_REPLACEMENT),
     }
 
-    # Shrinkage-Maske: cover ∈ {1,-1} und delta würde 0 erzeugen → nur F5 möglich
-    shrinkage_mask = (
-        ((cover_dct ==  1) & (delta == -1)) |
-        ((cover_dct == -1) & (delta == +1))
-    )
-    has_shrinkage  = np.any(shrinkage_mask)
+    # Embed-Maske: nur non-zero AC, kein DC
+    embed_mask_f5 = (cover_dct != 0)
+    embed_mask_f5[:, :, 0, 0] = False
 
-    # Null-Koeffizient-Maske: Null-Koeffizienten dürfen nie geändert werden
+    # zero_changed: Null-Koeffizienten dürfen bei F5 nie geändert werden
     zero_changed = np.any((cover_dct == 0) & (delta != 0))
 
     results = []
+
+    # --- lsb, nsf5, f5: uniform cost, binäres Modell ---
+    # Reihenfolge: lsb vor nsf5 vor f5
+    # lsb gewinnt bei lsb-Bildern durch Paritätscheck + Listenreihenfolge
+    # nsf5 gewinnt bei nsf5/f5-Bildern durch Listenreihenfolge (Modelle identisch)
+    for name in ("lsb", "nsf5", "f5"):
+
+        # Paritätscheck für lsb:
+        # LSB-Replacement: gerade Koeffizienten → nur +1, ungerade → nur -1
+        # nsF5/F5 ignorieren Parität → ~50% Verletzungen → lsb bekommt -inf
+        if name == "lsb":
+            cover_flat = cover_dct.ravel()
+            delta_flat = delta.ravel()
+            even_mask  = (cover_flat % 2 == 0)
+            impossible_lsb = np.any(
+                (even_mask  & (delta_flat == -1)) |
+                (~even_mask & (delta_flat == +1))
+            )
+            if impossible_lsb:
+                results.append({'method_name': name, 'M': 0.0,
+                                 'lambda': 0.0, 'log_lik': -np.inf})
+                continue
+
+        # F5: Null-Koeffizienten dürfen nicht geändert werden
+        if name == "f5" and zero_changed:
+            results.append({'method_name': name, 'M': 0.0,
+                             'lambda': 0.0, 'log_lik': -np.inf})
+            continue
+
+        # Uniform cost für alle drei (nsf5/f5/lsb sind uniform-cost-Algorithmen)
+        rho = np.ones_like(cover_dct, dtype=np.float64)
+        rho[cover_dct == 0] = 1e13
+        rho[:, :, 0, 0]     = 1e13
+
+        delta_fit = delta[embed_mask_f5]
+        rho_fit   = rho[embed_mask_f5]
+
+        est_lambda, est_M = estimate_parameters(delta_fit, rho_fit, "nsf5")
+
+        exponent = np.exp(-est_lambda * rho_fit)
+        p_i = exponent / (1 + exponent)
+        p0  = 1 - p_i
+
+        log_lik = float(np.sum(np.where(
+            delta_fit != 0,
+            np.log(p_i + 1e-15),
+            np.log(p0  + 1e-15)
+        )))
+        results.append({'method_name': name, 'M': est_M,
+                         'lambda': est_lambda, 'log_lik': log_lik})
+
+    # --- juniward, uerd, ebs: ternäres Modell ---
     for name, cost_fn in cost_functions.items():
-
-        # Unmöglichkeitsprüfungen (analog zur LSBR-Paritätsprüfung)
-        if name == "nsf5":
-            if has_shrinkage or zero_changed:
-                results.append({'method_name': name, 'M': 0.0,
-                                 'lambda': 0.0, 'log_lik': -np.inf})
-                continue
-
-        elif name == "f5":
-            if zero_changed:
-                results.append({'method_name': name, 'M': 0.0,
-                                 'lambda': 0.0, 'log_lik': -np.inf})
-                continue
-
         rho_raw = np.asarray(cost_fn(), dtype=np.float64)
         rho = rho_raw[0] if rho_raw.ndim == 5 else rho_raw
-
-        # Für F5: Shrinkage-Positionen haben niedrige Kosten (charakteristisches Signal)
-        if name == "f5" and has_shrinkage:
-            rho = rho.copy()
-            rho[shrinkage_mask] *= 0.1
 
         est_lambda, est_M = estimate_parameters(delta, rho, name)
 
         exponent = np.exp(-est_lambda * rho)
         p_i = exponent / (1 + 2 * exponent)
         p0  = 1 - 2 * p_i
-        log_lik = float(np.sum(np.where(
-            delta != 0,
-            np.log(p_i + 1e-15),
-            np.log(p0  + 1e-15)
-        )))
 
-        results.append({
-            'method_name': name,
-            'M':           est_M,
-            'lambda':      est_lambda,
-            'log_lik':     log_lik,
-        })
+        log_lik = float(np.sum(np.where(
+            delta.ravel() != 0,
+            np.log(p_i.ravel() + 1e-15),
+            np.log(p0.ravel()  + 1e-15)
+        )))
+        results.append({'method_name': name, 'M': est_M,
+                         'lambda': est_lambda, 'log_lik': log_lik})
 
     best_res = max(results, key=lambda x: x['log_lik'])
-    return [[best_res['method_name'], best_res['M']], results]
+    return {
+        'method': best_res['method_name'],
+        'M':      best_res['M'],
+        'lambda': best_res['lambda'],
+        'all':    results,
+    }
