@@ -1,6 +1,6 @@
 import pathlib
 import conseal as cl 
-import partial 
+from functools import partial 
 from conseal.lsb._costmap import Change
 
 ASSETS_DIR = pathlib.Path('test/assets')
