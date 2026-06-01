@@ -42,14 +42,13 @@ def estimate_parameters(delta, rho_matrix, name):
             
         lambda_param *= (beta_theo / beta_obs)
         
-    if name == "lsbr": 
-        p_i = np.exp(-lambda_param * rho_matrix) / (1 + np.exp(-lambda_param * rho_matrix))
-        h_i = -(p_i * np.log2(p_i + 1e-15) + (1 - p_i) * np.log2(1 - p_i + 1e-15))
+    if name in ("lsbr", "lsbm"):
+        m_estimated = 2.0 * float((delta != 0).sum())
     else: 
         p_i = np.exp(-lambda_param * rho_matrix) / (1 + np.exp(-lambda_param * rho_matrix))
         p0 = 1 - 2*p_i
-        h_i = - (2 * p_i * np.log2(p_i + 1e-15) + p0 * np.log2(p0 + 1e-15))
-    m_estimated = np.sum(h_i)
+        h_i = -(2 * p_i * np.log2(p_i + 1e-15) + p0 * np.log2(p0 + 1e-15))
+        m_estimated = np.sum(h_i)
     
     return lambda_param, m_estimated
 
