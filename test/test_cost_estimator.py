@@ -43,7 +43,7 @@ class TestCostEstimator(unittest.TestCase):
         for costfunction in defs.COST_FUNCTIONS 
     ])
     def test_attack_spatial(self,fname,alpha, costfunction): 
-        cover = np.array(Image.open(fname).convert('L'))
+        cover =  np.array(Image.open(defs.COVER_UNCOMPRESSED_GRAY_DIR / f'{fname}.png'))
         stego = costfunction[1](cover, alpha)
 
         res = attack(stego, cover)
