@@ -30,3 +30,20 @@ COST_FUNCTIONS = [
     ["suniward", cl.suniward.simulate_single_channel],
     ["wow",      cl.wow.simulate_single_channel],
 ]
+
+JPEG_COST_FUNCTIONS = [
+    ["juniward", lambda dct, spatial, qt, alpha: cl.juniward.simulate_single_channel(
+                     x0=spatial, y0=dct, qt=qt, alpha=alpha)],
+    ["uerd",     lambda dct, spatial, qt, alpha: cl.uerd.simulate_single_channel(
+                     y0=dct, qt=qt, alpha=alpha)],
+    ["ebs",      lambda dct, spatial, qt, alpha: cl.ebs.simulate_single_channel(
+                     y0=dct, qt=qt, alpha=alpha)],
+    ["nsf5",     lambda dct, spatial, qt, alpha: cl.nsF5.simulate_single_channel(
+                     y0=dct, alpha=alpha)],
+    ["f5",       lambda dct, spatial, qt, alpha: cl.F5.simulate_single_channel(
+                     y0=dct, alpha=alpha)],
+    ["lsb",      lambda dct, spatial, qt, alpha: cl.lsb.simulate(
+                     dct, modify=Change.LSB_REPLACEMENT, alpha=alpha)],
+]
+ 
+ 
