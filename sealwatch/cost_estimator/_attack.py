@@ -124,6 +124,8 @@ def estimate_parameters(delta, rho_matrix, ternary=True):
 
     for _ in range(100):
         exponent = np.exp(-lambda_param * rho_matrix)
+
+        # calculate gibs distribution 
         if ternary:
             p_i = exponent / (1 + 2 * exponent)
             beta_theo = np.mean(2 * p_i)
@@ -131,9 +133,11 @@ def estimate_parameters(delta, rho_matrix, ternary=True):
             p_i = exponent / (1 + exponent)
             beta_theo = np.mean(p_i)
 
+        # early exit if result is good enough 
         if abs(beta_theo - beta_obs) < 1e-6:
             break
 
+        # adjust lambda
         lambda_param *= beta_theo / beta_obs
 
     return lambda_param
@@ -176,8 +180,7 @@ def attack_spatial(stego, cover):
     'hill'
     """
 
-    delta = stego.astype(np.int16) - cover.astype(np.int16)
-
+    # predefined cost functions from conseal package 
     cost_functions = {
         "hill": cl.hill.compute_cost_adjusted,
         "hugo": cl.hugo.compute_cost_adjusted,
@@ -191,6 +194,7 @@ def attack_spatial(stego, cover):
         ),
     }
 
+    delta = stego.astype(np.int16) - cover.astype(np.int16)
     input_img = cover[:, :, 0] if cover.ndim == 3 else cover
     delta_2d = delta[:, :, 0] if delta.ndim == 3 else delta
     delta_arr = np.asarray(delta_2d, dtype=np.float64)
@@ -212,15 +216,20 @@ def attack_spatial(stego, cover):
         ternary = name not in ("lsbr",)
         est_lambda = estimate_parameters(delta_arr, rho, ternary=ternary)
 
+        # calculate M 
         exponent = np.exp(-est_lambda * rho)
-        if ternary:
+        if ternary and name != "lsbm":
             p_i = exponent / (1 + 2 * exponent)
             p0 = 1 - 2 * p_i
             est_M = float(np.sum(-(2 * p_i * np.log2(p_i + 1e-15) + p0 * np.log2(p0 + 1e-15))))
         else:
+            # for both lsbr and lsbm M=2*changes is a much better estimate 
+            # than calculating over entropie
             est_M = 2.0 * float((delta_arr != 0).sum())
 
         if name == "lsbr":
+            # extra check for better accuracy
+            # checks if not allowed changes for lsbr where done
             cover_flat = input_img.flatten()
             delta_flat = delta_arr.flatten()
             even_mask = cover_flat % 2 == 0
@@ -282,30 +291,38 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
     >>> result["method"]
     'juniward'
     """
+
+    # predefined methods 
+    # "name": (isTernary, function)
+    all_methods = {
+        "lsb":      (False, None), # did not work for DCT -> own uniform cost 
+        "nsf5":     (False, None), # doesn't work as we intent -> uniform cost
+        "f5":       (False, None), # same as nsf5 
+        "juniward": (True, lambda: cl.juniward.compute_cost_adjusted(x0=cover_spatial, y0=cover_dct, qt=qtable)),
+        "uerd":     (True, lambda: cl.uerd.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
+        "ebs":      (True, lambda: cl.ebs.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
+    }
+
+
     delta = (stego_dct.astype(np.int32) - cover_dct.astype(np.int32)).astype(np.float64)
 
-    # Embed-Maske: nur non-zero AC, kein DC
+    # find not zero elements 
     embed_mask_f5 = cover_dct != 0
     embed_mask_f5[:, :, 0, 0] = False
 
+    # extra heuristics for better accuracy 
     zero_changed = bool(np.any((cover_dct == 0) & (delta != 0)))
     wrong_direction = bool(np.any(
         ((cover_dct > 0) & embed_mask_f5 & (delta == +1))
         | ((cover_dct < 0) & embed_mask_f5 & (delta == -1))
     ))
 
-    all_methods = {
-        "lsb":      (False, None),
-        "nsf5":     (False, None),
-        "f5":       (False, None),
-        "juniward": (True, lambda: cl.juniward.compute_cost_adjusted(x0=cover_spatial, y0=cover_dct, qt=qtable)),
-        "uerd":     (True, lambda: cl.uerd.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
-        "ebs":      (True, lambda: cl.ebs.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
-    }
+
 
     results = []
     for name, (ternary, cost_fn) in all_methods.items():
 
+        # extra checks for better accuracy 
         if _is_impossible(name, cover_dct, delta, wrong_direction, zero_changed):
             results.append({"method_name": name, "M": 0.0, "lambda": 0.0, "log_lik": -np.inf})
             continue
@@ -318,12 +335,15 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
             rho_raw = np.asarray(cost_fn(), dtype=np.float64)
             rho = rho_raw[0] if rho_raw.ndim == 5 else rho_raw
 
+        # using the mask for every method because if not 
+        # ternary embeddings have an advantage
         delta_fit = delta[embed_mask_f5]
         rho_fit = rho[embed_mask_f5]
 
         est_lambda = estimate_parameters(delta_fit, rho_fit, ternary=ternary)
         exponent = np.exp(-est_lambda * rho_fit)
 
+        # calculate M 
         if ternary:
             p_i = exponent / (1 + 2 * exponent)
             p0 = 1 - 2 * p_i
@@ -331,6 +351,7 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
         else:
             est_M = 2.0 * float((delta_fit != 0).sum())
 
+        # calculate log likelihood 
         log_lik = _log_likelihood(delta_fit, exponent, ternary=ternary)
         results.append({"method_name": name, "M": est_M, "lambda": est_lambda, "log_lik": log_lik})
 
