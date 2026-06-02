@@ -26,6 +26,34 @@ def binary_entropy(p):
         return 0
     return -p * math.log2(p) - (1 - p) * math.log2(1 - p)
 
+def _log_likelihood(delta, exponent, ternary=True):
+    """Computes the log-likelihood of observed changes under a given embedding model.
+
+    :param delta: Observed change array (non-zero where a change occurred).
+    :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param exponent: Precomputed exp(-lambda * rho) values.
+    :type exponent: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param ternary: If ``True``, uses ternary model. If ``False``, uses binary model.
+    :type ternary: bool
+    :return: Total log-likelihood.
+    :rtype: float
+    """
+    if ternary:
+        p_i = exponent / (1 + 2 * exponent)
+        p0 = 1 - 2 * p_i
+    else:
+        p_i = exponent / (1 + exponent)
+        p0 = 1 - p_i
+
+    return float(
+        np.sum(
+            np.where(
+                delta != 0,
+                np.log(p_i + 1e-15),
+                np.log(p0 + 1e-15),
+            )
+        )
+    )
 
 def estimate_parameters(delta, rho_matrix, ternary=True):
     """Estimates the optimal Lagrange multiplier for a given cost matrix.
@@ -152,7 +180,6 @@ def attack_spatial(stego, cover):
         else:
             est_M = 2.0 * float((delta_arr != 0).sum())
 
-        exponent = np.exp(-est_lambda * rho)
         if name == "lsbr":
             cover_flat = input_img.flatten()
             delta_flat = delta_arr.flatten()
@@ -164,25 +191,9 @@ def attack_spatial(stego, cover):
             if impossible:
                 log_lik = -np.inf
             else:
-                p_i = exponent / (1 + exponent)
-                p0 = 1 - p_i
-                log_lik = float(
-                    np.sum(
-                        np.where(
-                            delta_arr != 0,
-                            np.log(p_i + 1e-15),
-                            np.log(p0 + 1e-15),
-                        )
-                    )
-                )
+                log_lik = _log_likelihood(delta_arr ,exponent, ternary=False)
         else:
-            p_i = exponent / (1 + 2 * exponent)
-            p0 = 1 - 2 * p_i
-            log_lik = np.sum(
-                np.where(
-                    delta_arr != 0, np.log(p_i + 1e-15), np.log(p0 + 1e-15)
-                )
-            )
+            log_lik  = _log_likelihood(delta_arr, exponent, ternary=True)
 
         results.append(
             {
@@ -323,18 +334,10 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
 
         est_lambda = estimate_parameters(delta_fit, rho_fit, ternary=False)
         est_M = 2.0 * float((delta_fit != 0).sum())
+        exponent = np.exp(-est_lambda * rho_fit) 
 
-        exponent = np.exp(-est_lambda * rho_fit)
-        p_i = exponent / (1 + exponent)
-        p0 = 1 - p_i
+        log_lik = _log_likelihood(delta_fit, exponent, ternary=False)
 
-        log_lik = float(
-            np.sum(
-                np.where(
-                    delta_fit != 0, np.log(p_i + 1e-15), np.log(p0 + 1e-15)
-                )
-            )
-        )
         results.append(
             {
                 "method_name": name,
@@ -360,13 +363,7 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
 
 
 
-        log_lik = float(
-            np.sum(
-                np.where(
-                    delta_fit != 0, np.log(p_i + 1e-15), np.log(p0 + 1e-15)
-                )
-            )
-        )
+        log_lik = _log_likelihood(delta_fit, exponent, ternary=True)
         results.append(
             {
                 "method_name": name,
