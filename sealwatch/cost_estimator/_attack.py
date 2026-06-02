@@ -55,7 +55,7 @@ def _log_likelihood(delta, exponent, ternary=True):
         )
     )
 
-def _is_impossible(name, cover_dct, delta, embed_mask_f5, wrong_direction, zero_changed):
+def _is_impossible(name, cover_dct, delta , wrong_direction, zero_changed):
     """Checks whether an embedding method is structurally impossible given the observed changes.
 
     Applies three impossibility criteria:
