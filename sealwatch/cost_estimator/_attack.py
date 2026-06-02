@@ -6,15 +6,46 @@ from functools import partial
 
 
 def binary_entropy(p):
+    """Computes the binary entropy of a probability value.
+
+    Returns 0 for values outside the valid range (0, 1).
+
+    :param p: Probability value.
+    :type p: float
+    :return: Binary entropy H(p) = -p*log2(p) - (1-p)*log2(1-p)
+    :rtype: float
+
+    :Example:
+
+    >>> binary_entropy(0.5)
+    1.0
+    >>> binary_entropy(0.0)
+    0.0
+    """
     if p <= 0 or p >= 1:
         return 0
     return -p * math.log2(p) - (1 - p) * math.log2(1 - p)
 
 
 def estimate_parameters(delta, rho_matrix, name):
-    """
-    EM-artiger Ansatz: Finde das optimale Lambda für eine
-    gegebene Kostenmatrix.
+    """Estimates the optimal Lambda and message length for a given cost matrix.
+
+    Uses an EM-like iterative approach to find the Lagrange multiplier lambda
+    that matches the theoretical change rate to the observed change rate.
+
+    :param delta: Difference array between stego and cover.
+    :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param rho_matrix: Cost matrix for the embedding method.
+    :type rho_matrix: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param name: Name of the embedding method (e.g. ``'nsf5'``, ``'juniward'``).
+    :type name: str
+    :return: Tuple of estimated lambda and estimated message length in bits.
+    :rtype: tuple[float, float]
+
+    :Example:
+
+    >>> import numpy as np
+    >>> lam, m = estimate_parameters(np.array([1, 0, 1]), np.ones(3), 'nsf5')
     """
     rho_matrix = np.asarray(rho_matrix)
     delta = np.asarray(delta)
@@ -54,6 +85,31 @@ def estimate_parameters(delta, rho_matrix, name):
 
 
 def attack(stego, cover):
+    """Runs a blind steganalysis attack on spatial domain images.
+
+    Estimates the most likely embedding method by computing cost matrices
+    for all supported methods and selecting the one with the highest
+    log-likelihood given the observed changes.
+
+    Supported methods: ``'hill'``, ``'hugo'``, ``'suniward'``, ``'wow'``,
+    ``'lsbm'``, ``'lsbr'``.
+
+    :param stego: Stego image as 2D or 3D numpy array.
+    :type stego: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param cover: Cover image as 2D or 3D numpy array, same shape as stego.
+    :type cover: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :return: Dictionary with keys ``'method'``, ``'M'``, ``'lambda'``, ``'all'``.
+    :rtype: dict
+
+    :Example:
+
+    >>> import numpy as np
+    >>> cover = np.array(Image.open("cover.png").convert("L"))
+    >>> result = attack(stego, cover)
+    >>> result["method"]
+    'hill'
+    """
+
     delta = stego.astype(np.int16) - cover.astype(np.int16)
 
     cost_functions = {
@@ -141,6 +197,35 @@ def attack(stego, cover):
 
 
 def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
+    """Runs a blind steganalysis attack on JPEG domain images.
+
+    Estimates the most likely embedding method by computing cost matrices
+    for all supported methods and selecting the one with the highest
+    log-likelihood given the observed DCT coefficient changes.
+
+    Supported methods: ``'lsb'``, ``'nsf5'``, ``'f5'``, ``'juniward'``,
+    ``'uerd'``, ``'ebs'``.
+
+    :param stego_dct: Stego DCT coefficients as 4D numpy array (blocks x blocks x 8 x 8).
+    :type stego_dct: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param cover_dct: Cover DCT coefficients, same shape as stego_dct.
+    :type cover_dct: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param cover_spatial: Cover image in spatial domain, used for juniward cost computation.
+    :type cover_spatial: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param qtable: JPEG quantization table.
+    :type qtable: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :return: Dictionary with keys ``'method'``, ``'M'``, ``'lambda'``, ``'all'``.
+    :rtype: dict
+
+    :Example:
+
+    >>> import jpeglib
+    >>> jpeg = jpeglib.read_dct("image.jpg")
+    >>> result = attack_jpeg(stego_dct, jpeg.Y, spatial, jpeg.qt[0])
+    >>> result["method"]
+    'juniward'
+    """
+    
     delta = (stego_dct.astype(np.int32) - cover_dct.astype(np.int32)).astype(
         np.float64
     )

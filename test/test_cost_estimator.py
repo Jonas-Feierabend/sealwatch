@@ -53,17 +53,14 @@ class TestCostEstimator(unittest.TestCase):
         self.assertGreaterEqual(lambda_param, 0.0)
         self.assertGreaterEqual(m_estimated, 0.0)
 
-        # Lambda in erwartetem Bereich
         if expected_lambda_range is not None:
             low, high = expected_lambda_range
             self.assertGreaterEqual(lambda_param, low)
             self.assertLessEqual(lambda_param, high)
 
-        # lsbr/lsbm/lsb: exakte m-Formel
         if name in ("lsbr", "lsbm", "lsb"):
             self.assertAlmostEqual(m_estimated, 2.0 * float((delta != 0).sum()), places=10)
 
-        # expliziter m-Wert
         if expected_m is not None:
             self.assertAlmostEqual(m_estimated, expected_m, places=5)
 
