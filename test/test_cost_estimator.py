@@ -100,11 +100,18 @@ class TestCostEstimatorJpeg(unittest.TestCase):
         ]
     )
     def test_attack_jpeg(self, fname, alpha, cf):
-        method_name, embed_fn = cf[0], cf[1]
+            method_name, embed_fn = cf[0], cf[1]
 
-        cover_dct, cover_spatial, qtable = self.load_cover_jpeg(fname)
-        stego_dct = embed_fn(cover_dct, cover_spatial, qtable, alpha)
+            cover_dct, cover_spatial, qtable = self.load_cover_jpeg(fname)
+            stego_dct = embed_fn(cover_dct, cover_spatial, qtable, alpha)
 
-        result = attack(stego_dct, cover_dct, cover_spatial, qtable)
+            result = attack(stego_dct, cover_dct, cover_spatial, qtable)
 
-        self.assertEqual(result["method"], method_name)
+            self.assertEqual(result["method"], method_name)
+            self.assertGreater(result["M"], 0.0)
+            self.assertGreater(result["lambda"], 0.0)
+
+            if method_name in ("lsb",):
+                delta = stego_dct.astype(np.int32) - cover_dct.astype(np.int32)
+                n_changes = int((delta != 0).sum())
+                self.assertAlmostEqual(result["M"], 2.0 * n_changes, places=5)
