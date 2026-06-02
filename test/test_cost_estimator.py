@@ -100,7 +100,7 @@ class TestCostEstimatorJpeg(unittest.TestCase):
             for fname in defs.TEST_IMAGES
             for alpha in [0.5, 0.7]
             for cf in defs.JPEG_COST_FUNCTIONS
-            if defs.JPEG_COST_FUNCTIONS[0] != "f5" 
+            if cf[0] != "f5" 
             # cannot differentiate nsf5 and f5
         ]
     )
