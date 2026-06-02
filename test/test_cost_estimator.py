@@ -68,6 +68,14 @@ class TestCostEstimator(unittest.TestCase):
         res = attack(stego, cover)
 
         self.assertEqual(res["method"], costfunction[0])
+        self.assertGreater(res["M"], 0.0)
+        self.assertGreater(res["lambda"], 0.0)
+
+        method_name = costfunction[0]
+        if method_name in ("lsbr", "lsbm", "lsb"):
+            delta = stego.astype(np.int16) - cover.astype(np.int16)
+            n_changes = int((delta != 0).sum())
+            self.assertAlmostEqual(res["M"], 2.0 * n_changes, places=5)
 
 
 class TestCostEstimatorJpeg(unittest.TestCase):
