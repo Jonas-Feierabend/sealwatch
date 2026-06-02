@@ -83,8 +83,18 @@ def estimate_parameters(delta, rho_matrix, name):
 
     return lambda_param, m_estimated
 
+def attack(stego, cover, cover_spatial=None, qtable=None):
+    """Auto-detects spatial vs JPEG domain and calls the appropriate attack."""
+    if stego.ndim == 4:
+        # 4D → DCT-Koeffizienten (JPEG-Domain)
+        assert cover_spatial is not None and qtable is not None, \
+            "cover_spatial and qtable required for JPEG attack"
+        return attack_jpeg(stego, cover, cover_spatial, qtable)
+    else:
+        # 2D/3D → Spatial-Domain
+        return attack_spatial(stego, cover)
 
-def attack(stego, cover):
+def attack_spatial(stego, cover):
     """Runs a blind steganalysis attack on spatial domain images.
 
     Estimates the most likely embedding method by computing cost matrices
@@ -225,7 +235,7 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
     >>> result["method"]
     'juniward'
     """
-    
+
     delta = (stego_dct.astype(np.int32) - cover_dct.astype(np.int32)).astype(
         np.float64
     )

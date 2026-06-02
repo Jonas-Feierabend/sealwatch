@@ -5,7 +5,6 @@ from PIL import Image
 from sealwatch.cost_estimator._attack import (
     binary_entropy,
     attack,
-    attack_jpeg,
     estimate_parameters
 )
 import sys
@@ -111,6 +110,6 @@ class TestCostEstimatorJpeg(unittest.TestCase):
         cover_dct, cover_spatial, qtable = self.load_cover_jpeg(fname)
         stego_dct = embed_fn(cover_dct, cover_spatial, qtable, alpha)
 
-        result = attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable)
+        result = attack(stego_dct, cover_dct, cover_spatial, qtable)
 
         self.assertEqual(result["method"], method_name)
