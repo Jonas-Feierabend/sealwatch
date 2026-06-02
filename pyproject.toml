@@ -3,6 +3,9 @@
 requires = ["maturin>=1.0"]
 build-backend = "maturin"
 
+[tool.black]
+line-length = 79
+
 [tool.maturin]
 module-name = "sealwatch._sealwatch"
 bindings = "pyo3"

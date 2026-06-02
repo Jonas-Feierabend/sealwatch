@@ -1,11 +1,8 @@
 """
 
-Authors:Jonas Feierabend 
+Authors:Jonas Feierabend
 Affiliation: University of Innsbruck
 """
 
-
-from ._attack import attack
-from . import _attack
-from ._attack import attack_jpeg
-
+from ._attack import attack  # noqa: F401
+from ._attack import attack_jpeg  # noqa: F401
