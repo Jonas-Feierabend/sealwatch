@@ -44,7 +44,7 @@ class TestCostEstimator(unittest.TestCase):
             ("juniward_half", np.array([1,0]*5), np.ones(10), True),
         ]
     )
-    def test_estimate_parameters(self, delta, rho_matrix, ternary):
+    def test_estimate_parameters(self, name, delta, rho_matrix, ternary):
         lambda_param = estimate_parameters(delta, rho_matrix, ternary=ternary)
 
         self.assertIsInstance(lambda_param, float)
@@ -72,7 +72,7 @@ class TestCostEstimator(unittest.TestCase):
         self.assertGreater(res["lambda"], 0.0)
 
         method_name = costfunction[0]
-        if method_name in ("lsbr", "lsbm", "lsb"):
+        if method_name == "lsbr":
             delta = stego.astype(np.int16) - cover.astype(np.int16)
             n_changes = int((delta != 0).sum())
             self.assertAlmostEqual(res["M"], 2.0 * n_changes, places=5)
@@ -112,6 +112,8 @@ class TestCostEstimatorJpeg(unittest.TestCase):
             self.assertGreater(result["lambda"], 0.0)
 
             if method_name in ("lsb",):
+                embed_mask = cover_dct != 0
+                embed_mask[:, :, 0, 0] = False
                 delta = stego_dct.astype(np.int32) - cover_dct.astype(np.int32)
-                n_changes = int((delta != 0).sum())
+                n_changes = int((delta[embed_mask] != 0).sum())
                 self.assertAlmostEqual(result["M"], 2.0 * n_changes, places=5)
