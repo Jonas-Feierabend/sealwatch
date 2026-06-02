@@ -6,6 +6,7 @@ from sealwatch.cost_estimator._attack import (
     binary_entropy,
     attack,
     attack_jpeg,
+    estimate_parameters
 )
 import sys
 import unittest
@@ -34,6 +35,37 @@ class TestCostEstimator(unittest.TestCase):
     def test_binary_entropy(self, p, expected):
         result = binary_entropy(p)
         self.assertAlmostEqual(result, expected, places=10)
+
+    @parameterized.expand(
+        [
+            # name, delta, rho_matrix, expected_lambda_sign, expected_m_positive
+            ("lsbr_no_change", np.zeros(10), np.ones(10), "lsbr", None, 0.0),
+            ("lsbr_half_change", np.array([1,0]*5), np.ones(10), "lsbr", None, 10.0),
+            ("lsbr_all_change", np.ones(10), np.ones(10), "lsbr", None, 20.0),
+            ("nsf5_high_rho", np.array([1,0]*5), np.ones(10)*10.0, "nsf5", (0.0, 5.0), None),
+            ("nsf5_low_rho", np.array([1,0]*5), np.ones(10)*0.1, "nsf5", (0.0, 100.0), None),
+            ("juniward_half", np.array([1,0]*5), np.ones(10), "juniward", (0.0, 10.0), None),
+        ]
+    )
+    def test_estimate_parameters(self, name, delta, rho_matrix, expected_lambda_range, expected_m):
+        lambda_param, m_estimated = estimate_parameters(delta, rho_matrix, name)
+
+        self.assertGreaterEqual(lambda_param, 0.0)
+        self.assertGreaterEqual(m_estimated, 0.0)
+
+        # Lambda in erwartetem Bereich
+        if expected_lambda_range is not None:
+            low, high = expected_lambda_range
+            self.assertGreaterEqual(lambda_param, low)
+            self.assertLessEqual(lambda_param, high)
+
+        # lsbr/lsbm/lsb: exakte m-Formel
+        if name in ("lsbr", "lsbm", "lsb"):
+            self.assertAlmostEqual(m_estimated, 2.0 * float((delta != 0).sum()), places=10)
+
+        # expliziter m-Wert
+        if expected_m is not None:
+            self.assertAlmostEqual(m_estimated, expected_m, places=5)
 
     @parameterized.expand(
         [
