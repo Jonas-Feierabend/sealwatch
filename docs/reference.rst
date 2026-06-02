@@ -17,6 +17,14 @@ chi2 attack
 
 .. autofunction:: sealwatch.chi2.attack
 
+Blind Steganalysis (cost_estimator)
+""""""""""""""""""""""""""""""""""""
+.. automodule:: sealwatch.cost_estimator
+.. autofunction:: sealwatch.cost_estimator.attack
+
+.. autofunction:: sealwatch.cost_estimator.attack_spatial
+
+.. autofunction:: sealwatch.cost_estimator.attack_jpeg
 
 SPA
 """

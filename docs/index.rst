@@ -37,7 +37,7 @@ Catching steganography has never been easier!
    * - Type
      - Algorithms
    * - Analytical attacks
-     - chi2, F5, SPA, WS, RJCA
+     - chi2, F5, SPA, WS, RJCA, cost_estimator
    * - Features
      - CRM, cc-JRM, HCF-COM, JRM, DCTR, PHARM, GFR, SPAM, SRM
    * - Detectors
@@ -53,3 +53,4 @@ Contents
    reference
    glossary
    faq
+   _build/rst/modules
