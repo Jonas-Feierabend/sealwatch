@@ -306,7 +306,7 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
     results = []
     for name, (ternary, cost_fn) in all_methods.items():
 
-        if _is_impossible(name, cover_dct, delta, embed_mask_f5, zero_changed):
+        if _is_impossible(name, cover_dct, delta, wrong_direction, zero_changed):
             results.append({"method_name": name, "M": 0.0, "lambda": 0.0, "log_lik": -np.inf})
             continue
 
