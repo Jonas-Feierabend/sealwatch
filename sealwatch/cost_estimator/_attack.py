@@ -74,9 +74,8 @@ def estimate_parameters(delta, rho_matrix, name):
     if name in ("lsbr", "lsbm", "lsb"):
         m_estimated = 2.0 * float((delta != 0).sum())
     else:
-        p_i = np.exp(-lambda_param * rho_matrix) / (
-            1 + np.exp(-lambda_param * rho_matrix)
-        )
+        exponent = np.exp(-lambda_param * rho_matrix)
+        p_i = exponent / (1 + 2*exponent)
         p0 = 1 - 2 * p_i
         h_i = -(2 * p_i * np.log2(p_i + 1e-15) + p0 * np.log2(p0 + 1e-15))
         m_estimated = np.sum(h_i)
