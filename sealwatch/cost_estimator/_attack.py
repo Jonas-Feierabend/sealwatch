@@ -55,6 +55,46 @@ def _log_likelihood(delta, exponent, ternary=True):
         )
     )
 
+def _is_impossible(name, cover_dct, delta, embed_mask_f5, wrong_direction, zero_changed):
+    """Checks whether an embedding method is structurally impossible given the observed changes.
+
+    Applies three impossibility criteria:
+
+    - **lsb**: LSB-replacement violates parity — even coefficients can only increase,
+      odd coefficients can only decrease. Any violation rules out LSB.
+    - **nsf5/f5**: nsF5 and F5 always decrease the absolute value of non-zero AC
+      coefficients. If any change increases the absolute value, both are ruled out.
+    - **f5**: F5 never modifies zero coefficients. If any zero coefficient changed,
+      F5 is ruled out.
+
+    :param name: Name of the embedding method to check.
+    :type name: str
+    :param cover_dct: Cover DCT coefficients as 4D array.
+    :type cover_dct: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param delta: Difference array between stego and cover DCT coefficients.
+    :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param embed_mask_f5: Boolean mask selecting non-zero AC coefficients (DC excluded).
+    :type embed_mask_f5: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param wrong_direction: ``True`` if any change increases the absolute value of a non-zero AC coefficient.
+    :type wrong_direction: bool
+    :param zero_changed: ``True`` if any zero coefficient was modified.
+    :type zero_changed: bool
+    :return: ``True`` if the method is structurally impossible, ``False`` otherwise.
+    :rtype: bool
+    """
+    if name == "lsb":
+        cover_flat = cover_dct.ravel()
+        delta_flat = delta.ravel()
+        even_mask = cover_flat % 2 == 0
+        return bool(np.any(
+            (even_mask & (delta_flat == -1)) | (~even_mask & (delta_flat == +1))
+        ))
+    if name in ("nsf5", "f5") and wrong_direction:
+        return True
+    if name == "f5" and zero_changed:
+        return True
+    return False
+
 def estimate_parameters(delta, rho_matrix, ternary=True):
     """Estimates the optimal Lagrange multiplier for a given cost matrix.
 
@@ -213,7 +253,6 @@ def attack_spatial(stego, cover):
         "all": results,
     }
 
-
 def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
     """Runs a blind steganalysis attack on JPEG domain images.
 
@@ -243,135 +282,57 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
     >>> result["method"]
     'juniward'
     """
-
-    delta = (stego_dct.astype(np.int32) - cover_dct.astype(np.int32)).astype(
-        np.float64
-    )
-
-    cost_functions = {
-        "juniward": lambda: cl.juniward.compute_cost_adjusted(
-            x0=cover_spatial, y0=cover_dct, qt=qtable
-        ),
-        "uerd": lambda: cl.uerd.compute_cost_adjusted(y0=cover_dct, qt=qtable),
-        "ebs": lambda: cl.ebs.compute_cost_adjusted(y0=cover_dct, qt=qtable),
-    }
+    delta = (stego_dct.astype(np.int32) - cover_dct.astype(np.int32)).astype(np.float64)
 
     # Embed-Maske: nur non-zero AC, kein DC
     embed_mask_f5 = cover_dct != 0
     embed_mask_f5[:, :, 0, 0] = False
 
-    # zero_changed: Null-Koeffizienten dürfen bei F5 nie geändert werden
-    zero_changed = np.any((cover_dct == 0) & (delta != 0))
+    zero_changed = bool(np.any((cover_dct == 0) & (delta != 0)))
+    wrong_direction = bool(np.any(
+        ((cover_dct > 0) & embed_mask_f5 & (delta == +1))
+        | ((cover_dct < 0) & embed_mask_f5 & (delta == -1))
+    ))
 
-    # Falsche-Richtung-Check: nsf5/f5 verringern immer den Absolutwert.
-    # Ternäre Methoden (ebs, juniward, uerd) können auch erhöhen.
-    # Wenn irgendeine Änderung den Absolutwert erhöht → nsf5/f5 unmöglich.
-    wrong_direction = np.any(
-        (
-            (cover_dct > 0) & embed_mask_f5 & (delta == +1)
-        )  # positiver nzAC erhöht
-        | (
-            (cover_dct < 0) & embed_mask_f5 & (delta == -1)
-        )  # negativer nzAC weiter verringert
-    )
+    all_methods = {
+        "lsb":      (False, None),
+        "nsf5":     (False, None),
+        "f5":       (False, None),
+        "juniward": (True, lambda: cl.juniward.compute_cost_adjusted(x0=cover_spatial, y0=cover_dct, qt=qtable)),
+        "uerd":     (True, lambda: cl.uerd.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
+        "ebs":      (True, lambda: cl.ebs.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
+    }
 
     results = []
+    for name, (ternary, cost_fn) in all_methods.items():
 
-    # --- lsb, nsf5, f5: uniform cost, binäres Modell ---
-    for name in ("lsb", "nsf5", "f5"):
-
-        # Paritätscheck für lsb
-        if name == "lsb":
-            cover_flat = cover_dct.ravel()
-            delta_flat = delta.ravel()
-            even_mask = cover_flat % 2 == 0
-            impossible_lsb = np.any(
-                (even_mask & (delta_flat == -1))
-                | (~even_mask & (delta_flat == +1))
-            )
-            if impossible_lsb:
-                results.append(
-                    {
-                        "method_name": name,
-                        "M": 0.0,
-                        "lambda": 0.0,
-                        "log_lik": -np.inf,
-                    }
-                )
-                continue
-
-        # Falsche-Richtung-Check für nsf5/f5
-        if name in ("nsf5", "f5") and wrong_direction:
-            results.append(
-                {
-                    "method_name": name,
-                    "M": 0.0,
-                    "lambda": 0.0,
-                    "log_lik": -np.inf,
-                }
-            )
+        if _is_impossible(name, cover_dct, delta, embed_mask_f5, zero_changed):
+            results.append({"method_name": name, "M": 0.0, "lambda": 0.0, "log_lik": -np.inf})
             continue
 
-        # F5: Null-Koeffizienten dürfen nicht geändert werden
-        if name == "f5" and zero_changed:
-            results.append(
-                {
-                    "method_name": name,
-                    "M": 0.0,
-                    "lambda": 0.0,
-                    "log_lik": -np.inf,
-                }
-            )
-            continue
-
-        # Uniform cost (nsf5/f5/lsb sind uniform-cost-Algorithmen)
-        rho = np.ones_like(cover_dct, dtype=np.float64)
-        rho[cover_dct == 0] = 1e13
-        rho[:, :, 0, 0] = 1e13
+        if cost_fn is None:  # uniform cost (lsb, nsf5, f5)
+            rho = np.ones_like(cover_dct, dtype=np.float64)
+            rho[cover_dct == 0] = 1e13
+            rho[:, :, 0, 0] = 1e13
+        else:
+            rho_raw = np.asarray(cost_fn(), dtype=np.float64)
+            rho = rho_raw[0] if rho_raw.ndim == 5 else rho_raw
 
         delta_fit = delta[embed_mask_f5]
         rho_fit = rho[embed_mask_f5]
 
-        est_lambda = estimate_parameters(delta_fit, rho_fit, ternary=False)
-        est_M = 2.0 * float((delta_fit != 0).sum())
-        exponent = np.exp(-est_lambda * rho_fit) 
-
-        log_lik = _log_likelihood(delta_fit, exponent, ternary=False)
-
-        results.append(
-            {
-                "method_name": name,
-                "M": est_M,
-                "lambda": est_lambda,
-                "log_lik": log_lik,
-            }
-        )
-
-    # --- juniward, uerd, ebs: ternäres Modell, über nzAC ---
-    for name, cost_fn in cost_functions.items():
-        rho_raw = np.asarray(cost_fn(), dtype=np.float64)
-        rho = rho_raw[0] if rho_raw.ndim == 5 else rho_raw
-
-        delta_fit = delta[embed_mask_f5]
-        rho_fit = rho[embed_mask_f5]
-
-        est_lambda = estimate_parameters(delta_fit, rho_fit, ternary=True)
+        est_lambda = estimate_parameters(delta_fit, rho_fit, ternary=ternary)
         exponent = np.exp(-est_lambda * rho_fit)
-        p_i = exponent / (1 + 2 * exponent)
-        p0 = 1 - 2 * p_i
-        est_M = float(np.sum(-(2 * p_i * np.log2(p_i + 1e-15) + p0 * np.log2(p0 + 1e-15))))
 
+        if ternary:
+            p_i = exponent / (1 + 2 * exponent)
+            p0 = 1 - 2 * p_i
+            est_M = float(np.sum(-(2 * p_i * np.log2(p_i + 1e-15) + p0 * np.log2(p0 + 1e-15))))
+        else:
+            est_M = 2.0 * float((delta_fit != 0).sum())
 
-
-        log_lik = _log_likelihood(delta_fit, exponent, ternary=True)
-        results.append(
-            {
-                "method_name": name,
-                "M": est_M,
-                "lambda": est_lambda,
-                "log_lik": log_lik,
-            }
-        )
+        log_lik = _log_likelihood(delta_fit, exponent, ternary=ternary)
+        results.append({"method_name": name, "M": est_M, "lambda": est_lambda, "log_lik": log_lik})
 
     best_res = max(results, key=lambda x: x["log_lik"])
     return {
