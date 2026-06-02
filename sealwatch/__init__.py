@@ -6,6 +6,7 @@ from . import F5
 from . import rjca
 from . import spa
 from . import ws
+from . import cost_estimator
 
 # features
 from . import dctr
@@ -69,6 +70,7 @@ __all__ = [
     'crm',
     'ccjrm',
     'chi2',
+    'cost_estimator',
     'F5',
     'rjca',
     'spa',
