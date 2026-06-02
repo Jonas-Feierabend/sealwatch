@@ -57,7 +57,7 @@ class TestCostEstimator(unittest.TestCase):
             self.assertGreaterEqual(lambda_param, low)
             self.assertLessEqual(lambda_param, high)
 
-        if name in ("lsbr", "lsbm", "lsb"):
+        if method_name in ("lsbr", "lsbm", "lsb"):
             self.assertAlmostEqual(m_estimated, 2.0 * float((delta != 0).sum()), places=10)
 
         if expected_m is not None:
