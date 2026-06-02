@@ -46,8 +46,8 @@ class TestCostEstimator(unittest.TestCase):
             ("juniward_half", np.array([1,0]*5), np.ones(10), "juniward", (0.0, 10.0), None),
         ]
     )
-    def test_estimate_parameters(self, name, delta, rho_matrix, expected_lambda_range, expected_m):
-        lambda_param, m_estimated = estimate_parameters(delta, rho_matrix, name)
+    def test_estimate_parameters(self, delta, rho_matrix, method_name, expected_lambda_range, expected_m):
+        lambda_param, m_estimated = estimate_parameters(delta, rho_matrix, method_name)
 
         self.assertGreaterEqual(lambda_param, 0.0)
         self.assertGreaterEqual(m_estimated, 0.0)
