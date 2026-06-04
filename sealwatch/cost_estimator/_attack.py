@@ -75,6 +75,71 @@ def _is_impossible(name, cover_dct, delta , wrong_direction, zero_changed):
         return True
     return False
 
+
+def _log_likelihood_directional(delta, exp_p1, exp_m1):
+    """Computes the log-likelihood of observed changes under a directional embedding model.
+
+    :param delta: Observed change array.
+    :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param exp_p1: Precomputed exp(-lambda * rho_p1) values.
+    :type exp_p1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param exp_m1: Precomputed exp(-lambda * rho_m1) values.
+    :type exp_m1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :return: Total log-likelihood.
+    :rtype: float
+    """
+    denom = 1 + exp_p1 + exp_m1
+    p_plus  = exp_p1 / denom
+    p_minus = exp_m1 / denom
+    p0      = 1 / denom
+
+    return float(np.sum(
+        np.where(delta == +1, np.log(p_plus  + 1e-15),
+        np.where(delta == -1, np.log(p_minus + 1e-15),
+                              np.log(p0      + 1e-15)))
+    ))
+
+
+def estimate_parameters_directional(delta, rho_p1, rho_m1):
+    """Estimates lambda using directional cost matrices.
+
+    Uses a multiplicative update to find lambda such that the theoretical
+    change rate matches the observed change rate, accounting for asymmetric
+    embedding costs in the plus and minus directions.
+
+    :param delta: Difference array between stego and cover.
+    :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param rho_p1: Cost matrix for +1 changes.
+    :type rho_p1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param rho_m1: Cost matrix for -1 changes.
+    :type rho_m1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :return: Estimated Lagrange multiplier lambda.
+    :rtype: float
+
+    :Example:
+
+    >>> import numpy as np
+    >>> lam = estimate_parameters_directional(np.array([1, 0, -1]), np.ones(3), np.ones(3))
+    """
+    delta = np.asarray(delta)
+    beta_obs = (delta != 0).mean()
+
+    if beta_obs == 0:
+        return 0.0
+
+    lambda_param = 1.0
+    for _ in range(100):
+        exp_p1 = np.exp(-lambda_param * rho_p1)
+        exp_m1 = np.exp(-lambda_param * rho_m1)
+        denom = 1 + exp_p1 + exp_m1
+        beta_theo = np.mean((exp_p1 + exp_m1) / denom)
+
+        if abs(beta_theo - beta_obs) < 1e-6:
+            break
+        lambda_param *= beta_theo / beta_obs
+
+    return lambda_param
+
 def estimate_parameters(delta, rho_matrix, ternary=True):
     """Estimates the optimal Lagrange multiplier for a given cost matrix.
 
@@ -186,58 +251,45 @@ def attack_spatial(stego, cover):
     results = []
     for name, cost_func in cost_functions.items():
 
-        rho_raw = np.asarray(
-            cost_func(input_img), dtype=np.float64
-        )  # (2, H, W)
+        rho_raw = np.asarray(cost_func(input_img), dtype=np.float64)  # (2, H, W)
 
-        # (2, H, W) → (H, W) 
         if name == "lsbr":
             even_mask = input_img % 2 == 0
             rho = np.where(even_mask, rho_raw[0], rho_raw[1])
-        else:
-            rho = rho_raw[0]  # symetric, both directions are the same 
-
-        ternary = name not in ("lsbr",)
-        est_lambda = estimate_parameters(delta_arr, rho, ternary=ternary)
-
-        # calculate M 
-        exponent = np.exp(-est_lambda * rho)
-        if ternary and name != "lsbm":
-            # calculate M over the entropi formula
-            # results in perfect coding 
-            p_i = exponent / (1 + 2 * exponent)
-            p0 = 1 - 2 * p_i
-            est_M = float(np.sum(-(2 * p_i * np.log2(p_i + 1e-15) + p0 * np.log2(p0 + 1e-15))))
-        else:
-            # for both lsbr and lsbm M=2*changes is a much better estimate 
-            # because they are not adaptive 
+            est_lambda = estimate_parameters(delta_arr, rho, ternary=False)
+            exponent = np.exp(-est_lambda * rho)
             est_M = 2.0 * float((delta_arr != 0).sum())
-
-        if name == "lsbr":
-            # extra check for better accuracy
-            # checks if not allowed changes for lsbr where done
             cover_flat = input_img.flatten()
             delta_flat = delta_arr.flatten()
             even_mask = cover_flat % 2 == 0
             impossible = np.any(
-                (even_mask & (delta_flat == -1))
-                | (~even_mask & (delta_flat == +1))
+                (even_mask & (delta_flat == -1)) | (~even_mask & (delta_flat == +1))
             )
-            if impossible:
-                log_lik = -np.inf
-            else:
-                log_lik = _log_likelihood(delta_arr ,exponent, ternary=False)
-        else:
-            log_lik  = _log_likelihood(delta_arr, exponent, ternary=True)
+            log_lik = -np.inf if impossible else _log_likelihood(delta_arr, exponent, ternary=False)
 
-        results.append(
-            {
-                "method_name": name,
-                "M": est_M,
-                "lambda": est_lambda,
-                "log_lik": log_lik,
-            }
-        )
+        elif name == "lsbm":
+            rho = rho_raw[0]
+            est_lambda = estimate_parameters(delta_arr, rho, ternary=True)
+            exponent = np.exp(-est_lambda * rho)
+            est_M = 2.0 * float((delta_arr != 0).sum())
+            log_lik = _log_likelihood(delta_arr, exponent, ternary=True)
+
+        else:  # hill, hugo, suniward, wow — directional
+            rho_p1 = rho_raw[0]
+            rho_m1 = rho_raw[1]
+            est_lambda = estimate_parameters_directional(delta_arr, rho_p1, rho_m1)
+            exp_p1 = np.exp(-est_lambda * rho_p1)
+            exp_m1 = np.exp(-est_lambda * rho_m1)
+            denom = 1 + exp_p1 + exp_m1
+            p0 = 1 / denom
+            est_M = float(np.sum(-(
+                exp_p1/denom * np.log2(exp_p1/denom + 1e-15) +
+                exp_m1/denom * np.log2(exp_m1/denom + 1e-15) +
+                p0 * np.log2(p0 + 1e-15)
+            )))
+            log_lik = _log_likelihood_directional(delta_arr, exp_p1, exp_m1)
+
+        results.append({"method_name": name, "M": est_M, "lambda": est_lambda, "log_lik": log_lik})
 
     best_res = max(results, key=lambda x: x["log_lik"])
 
