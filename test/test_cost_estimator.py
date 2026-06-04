@@ -3,7 +3,6 @@ import numpy as np
 from parameterized import parameterized
 from PIL import Image
 from sealwatch.cost_estimator._attack import (
-    binary_entropy,
     attack,
     estimate_parameters
 )
@@ -19,21 +18,6 @@ class TestCostEstimator(unittest.TestCase):
     """Test suite for costEstimator module."""
 
     _logger = logging.getLogger(__name__)
-
-    @parameterized.expand(
-        [
-            (0.5, 1.0),
-            (0.0, 0.0),
-            (1.0, 0.0),
-            (0.1, 0.46899559358928117),
-            (0.9, 0.46899559358928117),
-            (-0.1, 0.0),
-            (1.1, 0.0),
-        ]
-    )
-    def test_binary_entropy(self, p, expected):
-        result = binary_entropy(p)
-        self.assertAlmostEqual(result, expected, places=10)
 
     @parameterized.expand(
         [

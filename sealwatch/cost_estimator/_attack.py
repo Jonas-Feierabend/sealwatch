@@ -5,27 +5,6 @@ import math
 from functools import partial
 
 
-def binary_entropy(p):
-    """Computes the binary entropy of a probability value.
-
-    Returns 0 for values outside the valid range (0, 1).
-
-    :param p: Probability value.
-    :type p: float
-    :return: Binary entropy H(p) = -p*log2(p) - (1-p)*log2(1-p)
-    :rtype: float
-
-    :Example:
-
-    >>> binary_entropy(0.5)
-    1.0
-    >>> binary_entropy(0.0)
-    0.0
-    """
-    if p <= 0 or p >= 1:
-        return 0
-    return -p * math.log2(p) - (1 - p) * math.log2(1 - p)
-
 def _log_likelihood(delta, exponent, ternary=True):
     """Computes the log-likelihood of observed changes under a given embedding model.
 
