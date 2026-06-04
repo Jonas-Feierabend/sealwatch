@@ -51,6 +51,8 @@ class TestCostEstimator(unittest.TestCase):
 
         res = attack(stego, cover)
 
+
+
         self.assertEqual(res["method"], costfunction[0])
         self.assertGreater(res["M"], 0.0)
         self.assertGreater(res["lambda"], 0.0)
@@ -80,7 +82,9 @@ class TestCostEstimatorJpeg(unittest.TestCase):
             for alpha in [0.5, 0.7]
             for cf in defs.JPEG_COST_FUNCTIONS
             if cf[0] != "f5" 
-            # cannot differentiate nsf5 and f5
+            # because of the implementation of f5/nsf5. 
+            # f5 is nsf5 with a slightly higher embedding rate. 
+            # because of that it cannot be differentiated 
         ]
     )
     def test_attack_jpeg(self, fname, alpha, cf):
