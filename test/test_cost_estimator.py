@@ -40,7 +40,6 @@ class TestCostEstimator(unittest.TestCase):
             for fname in defs.TEST_IMAGES
             for alpha in [0.7, 0.8]
             for costfunction in defs.COST_FUNCTIONS
-            if fname != "seal7"  # test fails for seal7
         ]
     )
     def test_attack_spatial(self, fname, alpha, costfunction):
