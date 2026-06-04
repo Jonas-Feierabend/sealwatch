@@ -5,6 +5,27 @@ import math
 from functools import partial
 
 
+def binary_entropy(p):
+    """Computes the binary entropy of a probability value.
+
+    Returns 0 for values outside the valid range (0, 1).
+
+    :param p: Probability value.
+    :type p: float
+    :return: Binary entropy H(p) = -p*log2(p) - (1-p)*log2(1-p)
+    :rtype: float
+
+    :Example:
+
+    >>> binary_entropy(0.5)
+    1.0
+    >>> binary_entropy(0.0)
+    0.0
+    """
+    if p <= 0 or p >= 1:
+        return 0
+    return -p * math.log2(p) - (1 - p) * math.log2(1 - p)
+
 def _log_likelihood(delta, exponent, ternary=True):
     """Computes the log-likelihood of observed changes under a given embedding model.
 
@@ -101,13 +122,10 @@ def estimate_parameters(delta, rho_matrix, ternary=True):
     beta_obs = (delta != 0).mean()
     lambda_param = 1.0
 
-    if beta_obs == 0:
-        return 0.0  # no changes observed → no embedding
-
     for _ in range(100):
         exponent = np.exp(-lambda_param * rho_matrix)
 
-        # calculate Gibbs distribution 
+        # calculate gibs distribution 
         if ternary:
             p_i = exponent / (1 + 2 * exponent)
             beta_theo = np.mean(2 * p_i)
@@ -176,9 +194,6 @@ def attack_spatial(stego, cover):
         ),
     }
 
-    if np.array_equal(stego, cover):
-        raise ValueError("stego and cover are identical — did you pass the same image twice?")
-    
     delta = stego.astype(np.int16) - cover.astype(np.int16)
     input_img = cover[:, :, 0] if cover.ndim == 3 else cover
     delta_2d = delta[:, :, 0] if delta.ndim == 3 else delta
@@ -191,12 +206,12 @@ def attack_spatial(stego, cover):
             cost_func(input_img), dtype=np.float64
         )  # (2, H, W)
 
-        # (2, H, W) → (H, W) 
+        # (2, H, W) → (H, W) kollabieren
         if name == "lsbr":
             even_mask = input_img % 2 == 0
             rho = np.where(even_mask, rho_raw[0], rho_raw[1])
         else:
-            rho = rho_raw[0]  # symetric, both directions are the same 
+            rho = rho_raw[0]  # symmetrisch, beide Kanäle gleich
 
         ternary = name not in ("lsbr",)
         est_lambda = estimate_parameters(delta_arr, rho, ternary=ternary)
@@ -204,14 +219,12 @@ def attack_spatial(stego, cover):
         # calculate M 
         exponent = np.exp(-est_lambda * rho)
         if ternary and name != "lsbm":
-            # calculate M over the entropi formula
-            # results in perfect coding 
             p_i = exponent / (1 + 2 * exponent)
             p0 = 1 - 2 * p_i
             est_M = float(np.sum(-(2 * p_i * np.log2(p_i + 1e-15) + p0 * np.log2(p0 + 1e-15))))
         else:
             # for both lsbr and lsbm M=2*changes is a much better estimate 
-            # because they are not adaptive 
+            # than calculating over entropie
             est_M = 2.0 * float((delta_arr != 0).sum())
 
         if name == "lsbr":
@@ -283,16 +296,14 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
     # "name": (isTernary, function)
     all_methods = {
         "lsb":      (False, None), # did not work for DCT -> own uniform cost 
-        "nsf5":     (False, None), # doesn't work as we intend -> uniform cost
+        "nsf5":     (False, None), # doesn't work as we intent -> uniform cost
         "f5":       (False, None), # same as nsf5 
         "juniward": (True, lambda: cl.juniward.compute_cost_adjusted(x0=cover_spatial, y0=cover_dct, qt=qtable)),
         "uerd":     (True, lambda: cl.uerd.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
         "ebs":      (True, lambda: cl.ebs.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
     }
 
-    if np.array_equal(stego_dct, cover_dct):
-        raise ValueError("stego_dct and cover_dct are identical — did you pass the same image twice?")
-    
+
     delta = (stego_dct.astype(np.int32) - cover_dct.astype(np.int32)).astype(np.float64)
 
     # find not zero elements 
