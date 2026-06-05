@@ -100,7 +100,7 @@ def _log_likelihood_directional(delta, exp_p1, exp_m1):
     ))
 
 
-def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=100, damping_factor=0.5):
+def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=50, damping_factor=0.5):
     """Estimates lambda using directional cost matrices.
 
     Uses a multiplicative update to find lambda such that the theoretical
@@ -140,7 +140,7 @@ def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=100, damping
 
     return lambda_param
 
-def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=75, damping_factor=0.5):
+def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=50, damping_factor=0.5):
     """Estimates the optimal Lagrange multiplier for a given cost matrix.
 
     Uses a multiplicative update to find lambda such that the theoretical

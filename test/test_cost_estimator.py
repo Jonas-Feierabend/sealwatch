@@ -14,10 +14,58 @@ import defs
 sys.path.append("test")
 
 
-class TestCostEstimator(unittest.TestCase):
-    """Test suite for costEstimator module."""
+class TestCostEstimatorUtilities(unittest.TestCase): 
+    """Test site for costEstimator module."""
+
 
     _logger = logging.getLogger(__name__)
+
+    @parameterized.expand(
+        [
+            ("symmetric", np.array([1, 0, -1]*5), np.ones(15), np.ones(15)),
+            ("asymmetric_high_p1", np.array([1, 0, -1]*5), np.ones(15)*10.0, np.ones(15)*0.1),
+            ("asymmetric_high_m1", np.array([1, 0, -1]*5), np.ones(15)*0.1, np.ones(15)*10.0),
+            ("no_change", np.zeros(15), np.ones(15), np.ones(15)),
+        ]
+    )
+    def test_estimate_parameters_directional(self, name, delta, rho_p1, rho_m1):
+        from sealwatch.cost_estimator._attack import estimate_parameters_directional
+        lambda_param = estimate_parameters_directional(delta, rho_p1, rho_m1)
+
+        self.assertIsInstance(lambda_param, float)
+        self.assertGreaterEqual(lambda_param, 0.0)
+
+    @parameterized.expand(
+        [
+            ("all_plus", np.array([1, 0, 1, 0]), np.ones(4), np.ones(4)),
+            ("all_minus", np.array([-1, 0, -1, 0]), np.ones(4), np.ones(4)),
+            ("mixed", np.array([1, -1, 0, 1]), np.ones(4), np.ones(4)),
+            ("no_change", np.zeros(4), np.ones(4), np.ones(4)),
+        ]
+    )
+    def test_log_likelihood_directional(self, name, delta, exp_p1, exp_m1):
+        from sealwatch.cost_estimator._attack import _log_likelihood_directional
+        log_lik = _log_likelihood_directional(delta, exp_p1, exp_m1)
+
+        self.assertIsInstance(log_lik, float)
+        self.assertLessEqual(log_lik, 0.0) 
+
+    def test_log_likelihood_directional_higher_for_correct_direction(self):
+        """Correct direction should yield higher log-likelihood."""
+        from sealwatch.cost_estimator._attack import _log_likelihood_directional
+        delta = np.array([+1, 0, +1, 0])
+
+        exp_p1_good = np.ones(4) * 10.0
+        exp_m1_good = np.ones(4) * 0.1
+
+
+        exp_p1_bad = np.ones(4) * 0.1
+        exp_m1_bad = np.ones(4) * 10.0
+
+        lik_good = _log_likelihood_directional(delta, exp_p1_good, exp_m1_good)
+        lik_bad  = _log_likelihood_directional(delta, exp_p1_bad,  exp_m1_bad)
+
+        self.assertGreater(lik_good, lik_bad)
 
     @parameterized.expand(
         [
@@ -33,6 +81,13 @@ class TestCostEstimator(unittest.TestCase):
 
         self.assertIsInstance(lambda_param, float)
         self.assertGreaterEqual(lambda_param, 0.0)
+
+class TestCostEstimatorSpatial(unittest.TestCase):
+    """Test suite for costEstimator module."""
+
+    _logger = logging.getLogger(__name__)
+
+
 
     @parameterized.expand(
         [
@@ -63,7 +118,7 @@ class TestCostEstimator(unittest.TestCase):
             self.assertAlmostEqual(res["M"], 2.0 * n_changes, places=5)
 
 
-class TestCostEstimatorJpeg(unittest.TestCase):
+class TestCostEstimatorDCT(unittest.TestCase):
     """Test suite for attack_jpeg."""
 
     _logger = logging.getLogger(__name__)
