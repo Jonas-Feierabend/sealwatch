@@ -1,5 +1,5 @@
 import conseal as cl
-from conseal.lsb._costmap import Change
+from conseal.lsb import Change
 import numpy as np
 import math
 from functools import partial
@@ -78,8 +78,6 @@ def _is_impossible(name, cover_dct, delta , wrong_direction, zero_changed):
     :type cover_dct: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
     :param delta: Difference array between stego and cover DCT coefficients.
     :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
-    :param embed_mask_f5: Boolean mask selecting non-zero AC coefficients (DC excluded).
-    :type embed_mask_f5: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
     :param wrong_direction: ``True`` if any change increases the absolute value of a non-zero AC coefficient.
     :type wrong_direction: bool
     :param zero_changed: ``True`` if any zero coefficient was modified.
@@ -143,7 +141,7 @@ def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=50, damping_
 
         if abs(beta_theo - beta_obs) < 1e-6:
             break
-        lambda_param *= (beta_theo / beta_obs)**0.5 
+        lambda_param *= (beta_theo / beta_obs)**damping_factor
 
     return lambda_param
 
@@ -232,7 +230,7 @@ def attack_spatial(stego, cover):
 
     >>> import numpy as np
     >>> cover = np.array(Image.open("cover.png").convert("L"))
-    >>> result = attack(stego, cover)
+    >>> result = attack_spatial(stego, cover)
     >>> result["method"]
     'hill'
     """
@@ -344,9 +342,11 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
     # predefined methods 
     # "name": (isTernary, function)
     all_methods = {
-        "lsb":      (False, None), # did not work for DCT -> own uniform cost 
-        "nsf5":     (False, None), # doesn't work as we intent -> uniform cost
-        "f5":       (False, None), # same as nsf5 
+        # lsb, nsf5, f5: DCT-domain cost functions produce poor results for these methods.
+        # Fall back to uniform cost (rho=1) with infinite cost for DC and zero coefficients.
+        "lsb":      (False, None),  
+        "nsf5":     (False, None), 
+        "f5":       (False, None), 
         "juniward": (True, lambda: cl.juniward.compute_cost_adjusted(x0=cover_spatial, y0=cover_dct, qt=qtable)),
         "uerd":     (True, lambda: cl.uerd.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
         "ebs":      (True, lambda: cl.ebs.compute_cost_adjusted(y0=cover_dct, qt=qtable)),
