@@ -100,7 +100,7 @@ def _log_likelihood_directional(delta, exp_p1, exp_m1):
     ))
 
 
-def estimate_parameters_directional(delta, rho_p1, rho_m1):
+def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=100, damping_factor=0.5):
     """Estimates lambda using directional cost matrices.
 
     Uses a multiplicative update to find lambda such that the theoretical
@@ -128,7 +128,7 @@ def estimate_parameters_directional(delta, rho_p1, rho_m1):
         return 0.0
 
     lambda_param = 1.0
-    for _ in range(100):
+    for _ in range(max_iter):
         exp_p1 = np.exp(-lambda_param * rho_p1)
         exp_m1 = np.exp(-lambda_param * rho_m1)
         denom = 1 + exp_p1 + exp_m1
@@ -136,11 +136,11 @@ def estimate_parameters_directional(delta, rho_p1, rho_m1):
 
         if abs(beta_theo - beta_obs) < 1e-6:
             break
-        lambda_param *= beta_theo / beta_obs
+        lambda_param *= (beta_theo / beta_obs)**0.5 
 
     return lambda_param
 
-def estimate_parameters(delta, rho_matrix, ternary=True):
+def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=75, damping_factor=0.5):
     """Estimates the optimal Lagrange multiplier for a given cost matrix.
 
     Uses a multiplicative update to find lambda such that the theoretical
@@ -168,7 +168,7 @@ def estimate_parameters(delta, rho_matrix, ternary=True):
     lambda_param = 1.0
     if beta_obs == 0:
         return 0.0  # no changes observed → no embedding
-    for _ in range(100):
+    for _ in range(max_iter):
         exponent = np.exp(-lambda_param * rho_matrix)
 
         # calculate Gibbs distribution 
@@ -184,7 +184,7 @@ def estimate_parameters(delta, rho_matrix, ternary=True):
             break
 
         # adjust lambda
-        lambda_param *= beta_theo / beta_obs
+        lambda_param *= (beta_theo / beta_obs)**damping_factor
 
     return lambda_param
 
