@@ -35,6 +35,31 @@ def _log_likelihood(delta, exponent, ternary=True):
         )
     )
 
+def _log_likelihood_directional(delta, exp_p1, exp_m1):
+    """Computes the log-likelihood of observed changes under a directional embedding model.
+
+    :param delta: Observed change array.
+    :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param exp_p1: Precomputed exp(-lambda * rho_p1) values.
+    :type exp_p1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param exp_m1: Precomputed exp(-lambda * rho_m1) values.
+    :type exp_m1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :return: Total log-likelihood.
+    :rtype: float
+    """
+    denom = 1 + exp_p1 + exp_m1
+    p_plus  = exp_p1 / denom
+    p_minus = exp_m1 / denom
+    p0      = 1 / denom
+
+    return float(np.sum(
+        np.where(delta == +1, np.log(p_plus  + 1e-15),
+        np.where(delta == -1, np.log(p_minus + 1e-15),
+                              np.log(p0      + 1e-15)))
+    ))
+
+
+
 def _is_impossible(name, cover_dct, delta , wrong_direction, zero_changed):
     """Checks whether an embedding method is structurally impossible given the observed changes.
 
@@ -76,28 +101,6 @@ def _is_impossible(name, cover_dct, delta , wrong_direction, zero_changed):
     return False
 
 
-def _log_likelihood_directional(delta, exp_p1, exp_m1):
-    """Computes the log-likelihood of observed changes under a directional embedding model.
-
-    :param delta: Observed change array.
-    :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
-    :param exp_p1: Precomputed exp(-lambda * rho_p1) values.
-    :type exp_p1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
-    :param exp_m1: Precomputed exp(-lambda * rho_m1) values.
-    :type exp_m1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
-    :return: Total log-likelihood.
-    :rtype: float
-    """
-    denom = 1 + exp_p1 + exp_m1
-    p_plus  = exp_p1 / denom
-    p_minus = exp_m1 / denom
-    p0      = 1 / denom
-
-    return float(np.sum(
-        np.where(delta == +1, np.log(p_plus  + 1e-15),
-        np.where(delta == -1, np.log(p_minus + 1e-15),
-                              np.log(p0      + 1e-15)))
-    ))
 
 
 def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=50, damping_factor=0.5):
@@ -113,6 +116,10 @@ def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=50, damping_
     :type rho_p1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
     :param rho_m1: Cost matrix for -1 changes.
     :type rho_m1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param max_iter: Maximum number of iterations for the multiplicative update.
+    :type max_iter: int
+    :param damping_factor: Exponent for the multiplicative update step (< 1 slows convergence for stability).
+    :type damping_factor: float
     :return: Estimated Lagrange multiplier lambda.
     :rtype: float
 
@@ -153,6 +160,10 @@ def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=50, damping_fa
     :param ternary: If ``True``, uses ternary embedding model (delta ∈ {-1, 0, +1}).
         If ``False``, uses binary model (delta ∈ {0, 1}).
     :type ternary: bool
+    :param max_iter: Maximum number of iterations for the multiplicative update.
+    :type max_iter: int
+    :param damping_factor: Exponent for the multiplicative update step (< 1 slows convergence for stability).
+    :type damping_factor: float
     :return: Estimated Lagrange multiplier lambda.
     :rtype: float
 
