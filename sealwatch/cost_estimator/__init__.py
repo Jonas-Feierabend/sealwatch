@@ -8,6 +8,9 @@ via multiplicative update to match the theoretical change rate to the
 observed change rate. The method with the highest log-likelihood is returned
 together with an estimate of the embedded message length in bits.
 
+The Lambda optimization is grounded in the monotonicity of the Gibbs
+distribution entropy w.r.t. lambda [1].
+
 **Generic** (see :func:`attack`)
 
 Auto-detects spatial vs. JPEG domain based on input shape.
@@ -28,6 +31,12 @@ Supported methods: ``juniward``, ``uerd``, ``ebs``, ``nsf5``, ``f5``, ``lsb``.
     both algorithms use uniform-cost unidirectional embedding and produce
     nearly identical change patterns. ``f5`` images will typically be
     classified as ``nsf5``.
+
+.. rubric:: References
+
+.. [1] T. Filler, J. Judas, and J. Fridrich, "Minimizing Additive Distortion
+   in Steganography Using Syndrome-Trellis Codes," *IEEE Trans. Inf. Forensics
+   Security*, vol. 6, no. 3, pp. 920--935, 2011.
 
 :author: Jonas Feierabend
 :affiliation: University of Innsbruck
