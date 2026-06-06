@@ -114,7 +114,7 @@ def _is_impossible(name, cover_dct, delta , wrong_direction, zero_changed):
     return False
 
 
-def estimate_lambda(delta, rho_matrix, ternary=True, max_iter=200, damping_factor=0.5):
+def estimate_lambda(delta, rho_matrix, ternary=True, max_iter=70, damping_factor=0.5):
     """Estimates the optimal Lagrange multiplier for a given cost matrix.
 
     Uses a multiplicative update to find lambda such that the theoretical
@@ -159,7 +159,7 @@ def estimate_lambda(delta, rho_matrix, ternary=True, max_iter=200, damping_facto
             beta_theo = np.mean(p_i)
 
         # early exit if result is good enough 
-        if abs(beta_theo - beta_obs) < 1e-10:
+        if abs(beta_theo - beta_obs) < 1e-6:
             break
 
         # damping of 0.5 results in good convergence 
@@ -167,7 +167,7 @@ def estimate_lambda(delta, rho_matrix, ternary=True, max_iter=200, damping_facto
 
     return lambda_param
 
-def estimate_lambda_directional(delta, rho_p1, rho_m1, max_iter=200, damping_factor=0.5):
+def estimate_lambda_directional(delta, rho_p1, rho_m1, max_iter=70, damping_factor=0.5):
     """Estimates lambda using directional cost matrices.
 
     Uses a multiplicative update to find lambda such that the theoretical
@@ -208,7 +208,7 @@ def estimate_lambda_directional(delta, rho_p1, rho_m1, max_iter=200, damping_fac
         beta_theo = np.mean((exp_p1 + exp_m1) / denom)
 
         # early exit if result is good enough 
-        if abs(beta_theo - beta_obs) < 1e-10:
+        if abs(beta_theo - beta_obs) < 1e-6:
             break
 
         # damping of 0.5 results in good convergence 
