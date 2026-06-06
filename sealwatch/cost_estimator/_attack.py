@@ -25,9 +25,12 @@ def _log_likelihood(delta, exponent, ternary=True):
     :return: Total log-likelihood.
     :rtype: float
     """
+
+    # ternary models can change in both direction delta in {-1, 0, +1}
     if ternary:
-        p_i = exponent / (1 + 2 * exponent)
-        p0 = 1 - 2 * p_i
+        p_i = exponent / (1 + 2 * exponent) # probability of change
+        p0 = 1 - 2 * p_i # probability of no change
+    # binary models can only change in one direction delta in {1, 0}
     else:
         p_i = exponent / (1 + exponent)
         p0 = 1 - p_i
@@ -36,8 +39,8 @@ def _log_likelihood(delta, exponent, ternary=True):
         np.sum(
             np.where(
                 delta != 0,
-                np.log(p_i + 1e-15),
-                np.log(p0 + 1e-15),
+                np.log(p_i + 1e-15), # changed pixels
+                np.log(p0 + 1e-15), # unchanged pixels 
             )
         )
     )
@@ -55,9 +58,9 @@ def _log_likelihood_directional(delta, exp_p1, exp_m1):
     :rtype: float
     """
     denom = 1 + exp_p1 + exp_m1
-    p_plus  = exp_p1 / denom
-    p_minus = exp_m1 / denom
-    p0      = 1 / denom
+    p_plus  = exp_p1 / denom # probability of +1 
+    p_minus = exp_m1 / denom # probability of -1 
+    p0      = 1 / denom # probability of no change
 
     return float(np.sum(
         np.where(delta == +1, np.log(p_plus  + 1e-15),
@@ -92,7 +95,10 @@ def _is_impossible(name, cover_dct, delta , wrong_direction, zero_changed):
     :return: ``True`` if the method is structurally impossible, ``False`` otherwise.
     :rtype: bool
     """
-    if name == "lsb":
+
+    # lsb is the lsbr äquivalent in the jpeg domain 
+    if name in ("lsb", "lsbr"):
+        # checks if lsb makes any unallowed changes 
         cover_flat = cover_dct.ravel()
         delta_flat = delta.ravel()
         even_mask = cover_flat % 2 == 0
@@ -100,57 +106,13 @@ def _is_impossible(name, cover_dct, delta , wrong_direction, zero_changed):
             (even_mask & (delta_flat == -1)) | (~even_mask & (delta_flat == +1))
         ))
     if name in ("nsf5", "f5") and wrong_direction:
+        # both cannot increase values 
         return True
-    if name == "f5" and zero_changed:
+    if name in ("nsf5", "f5") and zero_changed:
+        # both cannot change zero coefficients 
         return True
     return False
 
-
-
-
-def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=50, damping_factor=0.5):
-    """Estimates lambda using directional cost matrices.
-
-    Uses a multiplicative update to find lambda such that the theoretical
-    change rate matches the observed change rate, accounting for asymmetric
-    embedding costs in the plus and minus directions.
-
-    :param delta: Difference array between stego and cover.
-    :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
-    :param rho_p1: Cost matrix for +1 changes.
-    :type rho_p1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
-    :param rho_m1: Cost matrix for -1 changes.
-    :type rho_m1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
-    :param max_iter: Maximum number of iterations for the multiplicative update.
-    :type max_iter: int
-    :param damping_factor: Exponent for the multiplicative update step (< 1 slows convergence for stability).
-    :type damping_factor: float
-    :return: Estimated Lagrange multiplier lambda.
-    :rtype: float
-
-    :Example:
-
-    >>> import numpy as np
-    >>> lam = estimate_parameters_directional(np.array([1, 0, -1]), np.ones(3), np.ones(3))
-    """
-    delta = np.asarray(delta)
-    beta_obs = (delta != 0).mean()
-
-    if beta_obs == 0:
-        return 0.0
-
-    lambda_param = 1.0
-    for _ in range(max_iter):
-        exp_p1 = np.exp(-lambda_param * rho_p1)
-        exp_m1 = np.exp(-lambda_param * rho_m1)
-        denom = 1 + exp_p1 + exp_m1
-        beta_theo = np.mean((exp_p1 + exp_m1) / denom)
-
-        if abs(beta_theo - beta_obs) < 1e-6:
-            break
-        lambda_param *= (beta_theo / beta_obs)**damping_factor
-
-    return lambda_param
 
 def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=50, damping_factor=0.5):
     """Estimates the optimal Lagrange multiplier for a given cost matrix.
@@ -183,15 +145,16 @@ def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=50, damping_fa
     beta_obs = (delta != 0).mean()
     lambda_param = 1.0
     if beta_obs == 0:
-        return 0.0  # no changes observed → no embedding
+        return 0.0  # no changes observed -> no embedding
+    
     for _ in range(max_iter):
         exponent = np.exp(-lambda_param * rho_matrix)
 
         # calculate Gibbs distribution 
-        if ternary:
+        if ternary: # delta in [-1,0,+1]
             p_i = exponent / (1 + 2 * exponent)
             beta_theo = np.mean(2 * p_i)
-        else:
+        else: # delta in [0, 1]
             p_i = exponent / (1 + exponent)
             beta_theo = np.mean(p_i)
 
@@ -199,21 +162,93 @@ def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=50, damping_fa
         if abs(beta_theo - beta_obs) < 1e-6:
             break
 
-        # adjust lambda
+        # damping of 0.5 results in good convergence 
+        lambda_param *= (beta_theo / beta_obs)**damping_factor
+
+    return lambda_param
+
+def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=50, damping_factor=0.5):
+    """Estimates lambda using directional cost matrices.
+
+    Uses a multiplicative update to find lambda such that the theoretical
+    change rate matches the observed change rate, accounting for asymmetric
+    embedding costs in the plus and minus directions.
+
+    :param delta: Difference array between stego and cover.
+    :type delta: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param rho_p1: Cost matrix for +1 changes.
+    :type rho_p1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param rho_m1: Cost matrix for -1 changes.
+    :type rho_m1: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param max_iter: Maximum number of iterations for the multiplicative update.
+    :type max_iter: int
+    :param damping_factor: Exponent for the multiplicative update step (< 1 slows convergence for stability).
+    :type damping_factor: float
+    :return: Estimated Lagrange multiplier lambda.
+    :rtype: float
+
+    :Example:
+
+    >>> import numpy as np
+    >>> lam = estimate_parameters_directional(np.array([1, 0, -1]), np.ones(3), np.ones(3))
+    """
+    delta = np.asarray(delta)
+    beta_obs = (delta != 0).mean()
+
+    if beta_obs == 0:
+        # No changes observed 
+        return 0.0
+
+    lambda_param = 1.0
+    for _ in range(max_iter):
+        # calculate Gibbs distribution for directional rho
+        exp_p1 = np.exp(-lambda_param * rho_p1)
+        exp_m1 = np.exp(-lambda_param * rho_m1)
+        denom = 1 + exp_p1 + exp_m1
+        beta_theo = np.mean((exp_p1 + exp_m1) / denom)
+
+        # early exit if result is good enough 
+        if abs(beta_theo - beta_obs) < 1e-6:
+            break
+
+        # damping of 0.5 results in good convergence 
         lambda_param *= (beta_theo / beta_obs)**damping_factor
 
     return lambda_param
 
 
+
+
 def attack(stego, cover, cover_spatial=None, qtable=None):
-    """Auto-detects spatial vs JPEG domain and calls the appropriate attack."""
+    """Identify the embedding method and estimate the message length from a cover-stego pair.
+
+    Auto-detects the domain based on input shape: 4D arrays are treated as
+    DCT coefficients (JPEG domain), 2D/3D arrays as spatial domain images.
+
+    :param stego: Stego image or DCT coefficients.
+    :type stego: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param cover: Cover image or DCT coefficients, same shape as stego.
+    :type cover: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__
+    :param cover_spatial: Cover image in spatial domain. Required for JPEG attack.
+    :type cover_spatial: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__, optional
+    :param qtable: JPEG quantization table. Required for JPEG attack.
+    :type qtable: `np.ndarray <https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html>`__, optional
+    :return: Dictionary with keys ``'method'`` (str), ``'M'`` (float, estimated message
+        length in bits), ``'lambda'`` (float, Lagrange multiplier), and ``'all'``
+        (list of results for each candidate method).
+    :rtype: dict
+    :raises AssertionError: If JPEG domain is detected but ``cover_spatial`` or
+        ``qtable`` are not provided.
+    :raises ValueError: If stego and cover are identical.
+    """
+
     if stego.ndim == 4:
         # 4D -> DCT-coefficient (JPEG)
         assert cover_spatial is not None and qtable is not None, \
             "cover_spatial and qtable required for JPEG attack"
         return attack_jpeg(stego, cover, cover_spatial, qtable)
     else:
-        # 2D/3D → Spatial-Domain
+        # 2D/3D -> Spatial-Domain
         return attack_spatial(stego, cover)
 
 def attack_spatial(stego, cover):
@@ -260,6 +295,7 @@ def attack_spatial(stego, cover):
         raise ValueError("stego and cover are identical — did you pass the same image twice?")
     
     delta = stego.astype(np.int16) - cover.astype(np.int16)
+    # only take first channel if there are multiple 
     input_img = cover[:, :, 0] if cover.ndim == 3 else cover
     delta_2d = delta[:, :, 0] if delta.ndim == 3 else delta
     delta_arr = np.asarray(delta_2d, dtype=np.float64)
@@ -270,30 +306,45 @@ def attack_spatial(stego, cover):
         rho_raw = np.asarray(cost_func(input_img), dtype=np.float64)  # (2, H, W)
 
         if name == "lsbr":
+            # transform two rho matrices to one combined
             even_mask = input_img % 2 == 0
             rho = np.where(even_mask, rho_raw[0], rho_raw[1])
+
             est_lambda = estimate_parameters(delta_arr, rho, ternary=False)
-            exponent = np.exp(-est_lambda * rho)
+            
+            # calculate estimated message length 
+            # two times the observed changes is a very good estimate 
+            # because 50% of time the pixel is already in the desired state 
             est_M = 2.0 * float((delta_arr != 0).sum())
-            cover_flat = input_img.flatten()
-            delta_flat = delta_arr.flatten()
-            even_mask = cover_flat % 2 == 0
-            impossible = np.any(
-                (even_mask & (delta_flat == -1)) | (~even_mask & (delta_flat == +1))
-            )
+
+            # check for not allowed changes 
+            impossible = _is_impossible(name, cover, delta, False, False)
+
+
+            exponent = np.exp(-est_lambda * rho)
             log_lik = -np.inf if impossible else _log_likelihood(delta_arr, exponent, ternary=False)
 
         elif name == "lsbm":
+            # rho is symetric 
             rho = rho_raw[0]
             est_lambda = estimate_parameters(delta_arr, rho, ternary=True)
-            exponent = np.exp(-est_lambda * rho)
+            
+
+            # calculate estimated message length 
+            # two times the observed changes is a very good estimate 
+            # because 50% of time the pixel is already in the desired state 
             est_M = 2.0 * float((delta_arr != 0).sum())
+
+            exponent = np.exp(-est_lambda * rho)
             log_lik = _log_likelihood(delta_arr, exponent, ternary=True)
 
         else:  # hill, hugo, suniward, wow — directional
+            # not symetric -> directional 
             rho_p1 = rho_raw[0]
             rho_m1 = rho_raw[1]
             est_lambda = estimate_parameters_directional(delta_arr, rho_p1, rho_m1)
+
+            # calculate message length 
             exp_p1 = np.exp(-est_lambda * rho_p1)
             exp_m1 = np.exp(-est_lambda * rho_m1)
             denom = 1 + exp_p1 + exp_m1
@@ -303,10 +354,13 @@ def attack_spatial(stego, cover):
                 exp_m1/denom * np.log2(exp_m1/denom + 1e-15) +
                 p0 * np.log2(p0 + 1e-15)
             )))
+
+            # log likelihood 
             log_lik = _log_likelihood_directional(delta_arr, exp_p1, exp_m1)
 
         results.append({"method_name": name, "M": est_M, "lambda": est_lambda, "log_lik": log_lik})
 
+    # sort for the highest log likelihood 
     best_res = max(results, key=lambda x: x["log_lik"])
 
     return {
@@ -364,12 +418,13 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
     
     delta = (stego_dct.astype(np.int32) - cover_dct.astype(np.int32)).astype(np.float64)
 
-    # find not zero elements 
+
+    # Extra checks for better accuracy 
     embed_mask_f5 = cover_dct != 0
     embed_mask_f5[:, :, 0, 0] = False
-
-    # extra heuristics for better accuracy 
+    # check if zero coefficients were changed 
     zero_changed = bool(np.any((cover_dct == 0) & (delta != 0)))
+    # check if lsbr unconform changes have been made 
     wrong_direction = bool(np.any(
         ((cover_dct > 0) & embed_mask_f5 & (delta == +1))
         | ((cover_dct < 0) & embed_mask_f5 & (delta == -1))
@@ -386,10 +441,12 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
             continue
 
         if cost_fn is None:  # uniform cost (lsb, nsf5, f5)
+            # create own cost 
             rho = np.ones_like(cover_dct, dtype=np.float64)
             rho[cover_dct == 0] = 1e13
             rho[:, :, 0, 0] = 1e13
         else:
+            # rho is symetric -> if two rhos are supplied reduce to one 
             rho_raw = np.asarray(cost_fn(), dtype=np.float64)
             rho = rho_raw[0] if rho_raw.ndim == 5 else rho_raw
 
@@ -413,6 +470,7 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
         log_lik = _log_likelihood(delta_fit, exponent, ternary=ternary)
         results.append({"method_name": name, "M": est_M, "lambda": est_lambda, "log_lik": log_lik})
 
+    # sort for highest log likelihood 
     best_res = max(results, key=lambda x: x["log_lik"])
     return {
         "method": best_res["method_name"],
