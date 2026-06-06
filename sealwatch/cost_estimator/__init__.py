@@ -1,6 +1,9 @@
 """
 Blind steganalysis attack for spatial and JPEG domain images.
 
+Author: Jonas Feierabend
+Affiliation: University of Innsbruck
+
 Estimates the embedding method and embedded message length of a stego image
 by fitting a statistical embedding model to the observed change pattern.
 For each candidate method, the Lagrange multiplier lambda is optimized
@@ -43,8 +46,6 @@ Supported methods: ``juniward``, ``uerd``, ``ebs``, ``nsf5``, ``f5``, ``lsb``.
 .. [2] A. L. Berger, V. J. Della Pietra, and S. A. Della Pietra,
     "A Maximum Entropy Approach to Natural Language Processing,"
     Computational Linguistics, vol. 22, no. 1, pp. 39-71, 1996.
-:author: Jonas Feierabend
-:affiliation: University of Innsbruck
 """
 
 from ._attack import attack, attack_spatial, attack_jpeg  # noqa: F401

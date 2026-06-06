@@ -346,7 +346,7 @@ def attack_spatial(stego, cover):
             )
 
         elif name == "lsbm":
-            # rho is symetric
+            # rho is symmetric
             rho = rho_raw[0]
             est_lambda = estimate_lambda(delta_arr, rho, ternary=True)
 
@@ -359,7 +359,7 @@ def attack_spatial(stego, cover):
             log_lik = _log_likelihood(delta_arr, exponent, ternary=True)
 
         else:  # hill, hugo, suniward, wow — directional
-            # not symetric -> directional
+            # not symmetric -> directional
             rho_p1 = rho_raw[0]
             rho_m1 = rho_raw[1]
             est_lambda = estimate_lambda_directional(delta_arr, rho_p1, rho_m1)
@@ -502,7 +502,7 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
             rho[cover_dct == 0] = 1e13
             rho[:, :, 0, 0] = 1e13
         else:
-            # rho is symetric -> if two rhos are supplied reduce to one
+            # rho is symmetric -> if two rhos are supplied reduce to one
             rho_raw = np.asarray(cost_fn(), dtype=np.float64)
             rho = rho_raw[0] if rho_raw.ndim == 5 else rho_raw
 
