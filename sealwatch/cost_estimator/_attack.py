@@ -1,3 +1,10 @@
+"""
+Blind steganalysis attack estimating the embedding method and message length from a cover-stego pair.
+
+Author: Jonas Feierabend 
+Affiliation: University of Innsbruck
+"""
+
 import conseal as cl
 from conseal.lsb import Change
 import numpy as np
