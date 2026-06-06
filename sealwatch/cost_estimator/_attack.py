@@ -114,7 +114,7 @@ def _is_impossible(name, cover_dct, delta , wrong_direction, zero_changed):
     return False
 
 
-def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=50, damping_factor=0.5):
+def estimate_lambda(delta, rho_matrix, ternary=True, max_iter=200, damping_factor=0.5):
     """Estimates the optimal Lagrange multiplier for a given cost matrix.
 
     Uses a multiplicative update to find lambda such that the theoretical
@@ -137,7 +137,7 @@ def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=50, damping_fa
     :Example:
 
     >>> import numpy as np
-    >>> lam = estimate_parameters(np.array([1, 0, 1]), np.ones(3), ternary=False)
+    >>> lam = estimate_lambda(np.array([1, 0, 1]), np.ones(3), ternary=False)
     """
     rho_matrix = np.asarray(rho_matrix)
     delta = np.asarray(delta)
@@ -159,7 +159,7 @@ def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=50, damping_fa
             beta_theo = np.mean(p_i)
 
         # early exit if result is good enough 
-        if abs(beta_theo - beta_obs) < 1e-6:
+        if abs(beta_theo - beta_obs) < 1e-10:
             break
 
         # damping of 0.5 results in good convergence 
@@ -167,7 +167,7 @@ def estimate_parameters(delta, rho_matrix, ternary=True, max_iter=50, damping_fa
 
     return lambda_param
 
-def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=50, damping_factor=0.5):
+def estimate_lambda_directional(delta, rho_p1, rho_m1, max_iter=200, damping_factor=0.5):
     """Estimates lambda using directional cost matrices.
 
     Uses a multiplicative update to find lambda such that the theoretical
@@ -190,7 +190,7 @@ def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=50, damping_
     :Example:
 
     >>> import numpy as np
-    >>> lam = estimate_parameters_directional(np.array([1, 0, -1]), np.ones(3), np.ones(3))
+    >>> lam = estimate_lambda_directional(np.array([1, 0, -1]), np.ones(3), np.ones(3))
     """
     delta = np.asarray(delta)
     beta_obs = (delta != 0).mean()
@@ -208,7 +208,7 @@ def estimate_parameters_directional(delta, rho_p1, rho_m1, max_iter=50, damping_
         beta_theo = np.mean((exp_p1 + exp_m1) / denom)
 
         # early exit if result is good enough 
-        if abs(beta_theo - beta_obs) < 1e-6:
+        if abs(beta_theo - beta_obs) < 1e-10:
             break
 
         # damping of 0.5 results in good convergence 
@@ -310,7 +310,7 @@ def attack_spatial(stego, cover):
             even_mask = input_img % 2 == 0
             rho = np.where(even_mask, rho_raw[0], rho_raw[1])
 
-            est_lambda = estimate_parameters(delta_arr, rho, ternary=False)
+            est_lambda = estimate_lambda(delta_arr, rho, ternary=False)
             
             # calculate estimated message length 
             # two times the observed changes is a very good estimate 
@@ -327,7 +327,7 @@ def attack_spatial(stego, cover):
         elif name == "lsbm":
             # rho is symetric 
             rho = rho_raw[0]
-            est_lambda = estimate_parameters(delta_arr, rho, ternary=True)
+            est_lambda = estimate_lambda(delta_arr, rho, ternary=True)
             
 
             # calculate estimated message length 
@@ -342,7 +342,7 @@ def attack_spatial(stego, cover):
             # not symetric -> directional 
             rho_p1 = rho_raw[0]
             rho_m1 = rho_raw[1]
-            est_lambda = estimate_parameters_directional(delta_arr, rho_p1, rho_m1)
+            est_lambda = estimate_lambda_directional(delta_arr, rho_p1, rho_m1)
 
             # calculate message length 
             exp_p1 = np.exp(-est_lambda * rho_p1)
@@ -455,7 +455,7 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
         delta_fit = delta[embed_mask_f5]
         rho_fit = rho[embed_mask_f5]
 
-        est_lambda = estimate_parameters(delta_fit, rho_fit, ternary=ternary)
+        est_lambda = estimate_lambda(delta_fit, rho_fit, ternary=ternary)
         exponent = np.exp(-est_lambda * rho_fit)
 
         # calculate M 

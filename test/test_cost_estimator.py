@@ -4,8 +4,8 @@ from parameterized import parameterized
 from PIL import Image
 from sealwatch.cost_estimator._attack import (
     attack,
-    estimate_parameters,
-    estimate_parameters_directional,
+    estimate_lambda,
+    estimate_lambda_directional,
     _log_likelihood,
     _log_likelihood_directional,
     _is_impossible,
@@ -19,7 +19,7 @@ sys.path.append("test")
 
 
 class TestEstimateParameters(unittest.TestCase):
-    """Unit tests for estimate_parameters."""
+    """Unit tests for estimate_lambda."""
 
     _logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class TestEstimateParameters(unittest.TestCase):
     ])
     def test_returns_nonneg_float(self, name, delta, rho_matrix, ternary):
         """Lambda must be a non-negative float."""
-        lam = estimate_parameters(delta, rho_matrix, ternary=ternary)
+        lam = estimate_lambda(delta, rho_matrix, ternary=ternary)
         self.assertIsInstance(lam, float)
         self.assertGreaterEqual(lam, 0.0)
 
@@ -44,7 +44,7 @@ class TestEstimateParameters(unittest.TestCase):
     ])
     def test_beta_theo_matches_beta_obs(self, name, delta, rho_matrix, ternary):
         """After optimization beta_theo must match beta_obs within tolerance."""
-        lam = estimate_parameters(delta, rho_matrix, ternary=ternary, max_iter=200)
+        lam = estimate_lambda(delta, rho_matrix, ternary=ternary, max_iter=200)
         exponent = np.exp(-lam * rho_matrix)
         if ternary:
             p_i = exponent / (1 + 2 * exponent)
@@ -57,12 +57,12 @@ class TestEstimateParameters(unittest.TestCase):
 
     def test_no_changes_returns_zero(self):
         """Zero observed changes must return lambda=0."""
-        lam = estimate_parameters(np.zeros(10), np.ones(10))
+        lam = estimate_lambda(np.zeros(10), np.ones(10))
         self.assertEqual(lam, 0.0)
 
 
 class TestEstimateParametersDirectional(unittest.TestCase):
-    """Unit tests for estimate_parameters_directional."""
+    """Unit tests for estimate_lambda_directional."""
 
     @parameterized.expand([
         ("symmetric",   np.array([1, 0, -1, 0]*3), np.ones(12),     np.ones(12)),
@@ -70,7 +70,7 @@ class TestEstimateParametersDirectional(unittest.TestCase):
         ("high_rho",    np.array([1, 0]*6),         np.ones(12)*5.0, np.ones(12)*5.0),
     ])
     def test_returns_nonneg_float(self, name, delta, rho_p1, rho_m1):
-        lam = estimate_parameters_directional(delta, rho_p1, rho_m1)
+        lam = estimate_lambda_directional(delta, rho_p1, rho_m1)
         self.assertIsInstance(lam, float)
         self.assertGreaterEqual(lam, 0.0)
 
@@ -79,7 +79,7 @@ class TestEstimateParametersDirectional(unittest.TestCase):
         delta = np.array([1, 0, -1, 0] * 5, dtype=float)
         rho_p1 = np.ones(20) * 0.5
         rho_m1 = np.ones(20) * 2.0
-        lam = estimate_parameters_directional(delta, rho_p1, rho_m1)
+        lam = estimate_lambda_directional(delta, rho_p1, rho_m1)
         exp_p1 = np.exp(-lam * rho_p1)
         exp_m1 = np.exp(-lam * rho_m1)
         denom = 1 + exp_p1 + exp_m1
@@ -88,7 +88,7 @@ class TestEstimateParametersDirectional(unittest.TestCase):
         self.assertAlmostEqual(beta_theo, beta_obs, places=4)
 
     def test_no_changes_returns_zero(self):
-        lam = estimate_parameters_directional(np.zeros(10), np.ones(10), np.ones(10))
+        lam = estimate_lambda_directional(np.zeros(10), np.ones(10), np.ones(10))
         self.assertEqual(lam, 0.0)
 
 
