@@ -43,4 +43,4 @@ Supported methods: ``juniward``, ``uerd``, ``ebs``, ``nsf5``, ``f5``, ``lsb``.
 """
 
 from ._attack import attack, attack_spatial, attack_jpeg  # noqa: F401
-from ._attack import estimate_lambda, estimate_lambda_directional # noqa: F401
+from ._attack import estimate_lambda, estimate_lambda_directional  # noqa: F401
