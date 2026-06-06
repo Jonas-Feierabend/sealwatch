@@ -284,8 +284,8 @@ def attack_spatial(stego, cover):
 
     :Example:
 
-    >>> import numpy as np
     >>> cover = np.array(Image.open("cover.png").convert("L"))
+    >>> stego = np.array(Image.open("stego.png").convert("L"))
     >>> result = attack_spatial(stego, cover)
     >>> result["method"]
     'hill'
@@ -425,9 +425,10 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
 
     :Example:
 
-    >>> import jpeglib
-    >>> jpeg = jpeglib.read_dct("image.jpg")
-    >>> result = attack_jpeg(stego_dct, jpeg.Y, spatial, jpeg.qt[0])
+    >>> cover_j   = jpeglib.read_dct("cover.jpg")
+    >>> stego_j   = jpeglib.read_dct("stego.jpg")
+    >>> spatial_j = jpeglib.read_spatial("cover.jpg")
+    >>> result = attack_jpeg(stego_j.Y, cover_j.Y, spatial_j.spatial[:, :, 0], cover_j.qt[0])
     >>> result["method"]
     'juniward'
     """

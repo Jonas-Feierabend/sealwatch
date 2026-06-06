@@ -11,6 +11,9 @@ together with an estimate of the embedded message length in bits.
 The Lambda optimization is grounded in the monotonicity of the Gibbs
 distribution entropy w.r.t. lambda [1].
 
+The multiplicative update rule for lambda is taken from [2] instead
+of the binary search proposed in [1].
+
 **Generic** (see :func:`attack`)
 
 Auto-detects spatial vs. JPEG domain based on input shape.
@@ -37,7 +40,9 @@ Supported methods: ``juniward``, ``uerd``, ``ebs``, ``nsf5``, ``f5``, ``lsb``.
 .. [1] T. Filler, J. Judas, and J. Fridrich, "Minimizing Additive Distortion
    in Steganography Using Syndrome-Trellis Codes," *IEEE Trans. Inf. Forensics
    Security*, vol. 6, no. 3, pp. 920--935, 2011.
-
+.. [2] A. L. Berger, V. J. Della Pietra, and S. A. Della Pietra,
+    "A Maximum Entropy Approach to Natural Language Processing,"
+    Computational Linguistics, vol. 22, no. 1, pp. 39-71, 1996.
 :author: Jonas Feierabend
 :affiliation: University of Innsbruck
 """
