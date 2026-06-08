@@ -526,6 +526,17 @@ def attack_jpeg(stego_dct, cover_dct, cover_spatial, qtable):
                     )
                 )
             )
+        elif name in ["f5", "nsf5"]: 
+            p_i = exponent/ (1+exponent)
+            p0 = 1-p_i 
+            est_M = float(
+                np.sum(
+                    -(
+                         p_i * np.log2(p_i + 1e-15)
+                        + p0 * np.log2(p0 + 1e-15)
+                    )
+                )
+            )
         else:
             est_M = 2.0 * float((delta_fit != 0).sum())
 
